@@ -1,7 +1,7 @@
-From 347e3eabec5cfc8ff9c4e6eef79ed8d9e1b1a3fa Mon Sep 17 00:00:00 2001
+From 56f55e2890dc816e676690246fb6a9708b802a4a Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Mon, 19 Apr 2010 23:02:30 -0400
-Subject: [PATCH 1/5] Add smartcard plugin
+Subject: [PATCH 1/6] Add smartcard plugin
 
 This plugin listens for smartcard insertion and removal events and
 then locks the screen or forces a log out (depending on gconf) when
@@ -20,7 +20,7 @@ the card used for login is removed.
  plugins/smartcard/gsd-smartcard.c                  |  555 ++++++++
  plugins/smartcard/gsd-smartcard.h                  |   94 ++
  .../smartcard/smartcard.gnome-settings-plugin.in   |    8 +
- 13 files changed, 2666 insertions(+), 1 deletions(-)
+ 13 files changed, 2666 insertions(+), 1 deletion(-)
  create mode 100644 data/desktop_gnome_peripherals_smartcard.schemas.in
  create mode 100644 plugins/smartcard/Makefile.am
  create mode 100644 plugins/smartcard/gsd-smartcard-manager.c
@@ -2810,13 +2810,13 @@ index 0000000..787c910
 +Copyright=Copyright © 2010 Red Hat, Inc.
 +Website=
 -- 
-1.7.1
+2.7.0
 
 
-From 84df60ad9b0294b20e4d70fb5da22256a55fb749 Mon Sep 17 00:00:00 2001
+From e1e010d08c2b8e48157201124d2dcc4d3f5e5aef Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Wed, 5 May 2010 14:14:00 -0400
-Subject: [PATCH 2/5] Always dist smartcard.gnome-settings-plugin
+Subject: [PATCH 2/6] Always dist smartcard.gnome-settings-plugin
 
 Before if the person who rolled the tarball lacked
 smartcard support on their system, then the build
@@ -2824,8 +2824,8 @@ would break for someone with smartcard support enabled.
 
 https://bugzilla.gnome.org/show_bug.cgi?id=617748
 ---
- plugins/smartcard/Makefile.am |    6 +++---
- 1 files changed, 3 insertions(+), 3 deletions(-)
+ plugins/smartcard/Makefile.am | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/plugins/smartcard/Makefile.am b/plugins/smartcard/Makefile.am
 index 97468cd..62e253e 100644
@@ -2849,13 +2849,13 @@ index 97468cd..62e253e 100644
 -@GSD_INTLTOOL_PLUGIN_RULE@
 -endif
 -- 
-1.7.1
+2.7.0
 
 
-From fcbcdd7e5714a2d58c746c82835690b42c2f29c2 Mon Sep 17 00:00:00 2001
+From a916f86475a714b93dac9f81f3e073c4e162b11a Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Tue, 8 Jun 2010 17:56:22 -0400
-Subject: [PATCH 3/5] Fix build for --disable-smartcard-support
+Subject: [PATCH 3/6] Fix build for --disable-smartcard-support
 
 commit 4b334ddf6c53ce795063d44746a9a2d90fea85ff broke the
 build for --disable-smartcard-users.
@@ -2865,8 +2865,8 @@ William Jon McCann <william.jon.mccann@gmail.com>
 
 https://bugzilla.gnome.org/show_bug.cgi?id=617748
 ---
- plugins/Makefile.am           |   15 ++++++++++++---
- plugins/smartcard/Makefile.am |    2 --
+ plugins/Makefile.am           | 15 ++++++++++++---
+ plugins/smartcard/Makefile.am |  2 --
  2 files changed, 12 insertions(+), 5 deletions(-)
 
 diff --git a/plugins/Makefile.am b/plugins/Makefile.am
@@ -2922,17 +2922,17 @@ index 62e253e..dcfaf49 100644
  plugin_in_files = \
  	smartcard.gnome-settings-plugin.in
 -- 
-1.7.1
+2.7.0
 
 
-From 8db287af703267ba1678f4663c2fa0cf91c853f9 Mon Sep 17 00:00:00 2001
+From 4cdbb613f6e376b8cbf76da92f54d9f4fa84bb6a Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Fri, 16 Jul 2010 13:45:18 -0400
-Subject: [PATCH 4/5] Drop some dead code
+Subject: [PATCH 4/6] Drop some dead code
 
 ---
- plugins/smartcard/gsd-smartcard.c |   29 ++++++++++++++---------------
- 1 files changed, 14 insertions(+), 15 deletions(-)
+ plugins/smartcard/gsd-smartcard.c | 29 ++++++++++++++---------------
+ 1 file changed, 14 insertions(+), 15 deletions(-)
 
 diff --git a/plugins/smartcard/gsd-smartcard.c b/plugins/smartcard/gsd-smartcard.c
 index 22f4e12..d5863c7 100644
@@ -2998,13 +2998,13 @@ index 22f4e12..d5863c7 100644
                  card->priv->state = state;
  
 -- 
-1.7.1
+2.7.0
 
 
-From 19e9109308d5b6bab7fd7e54d0c24fd3d6b8135a Mon Sep 17 00:00:00 2001
+From de18d700f8a2d08fd0ff97cc9db8d977d935be42 Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Fri, 16 Jul 2010 13:54:41 -0400
-Subject: [PATCH 5/5] Support multiple smartcard drivers at once
+Subject: [PATCH 5/6] Support multiple smartcard drivers at once
 
 Previously we would look for the first available and
 loaded smartcard driver and only listen for events for cards
@@ -3014,8 +3014,8 @@ Furthermore, it breaks the one reader case sometimes, as well,
 if we end up selecting a software token (and thus ignore the
 hardware token).
 ---
- plugins/smartcard/gsd-smartcard-manager.c |  452 +++++++++++++++++++----------
- 1 files changed, 305 insertions(+), 147 deletions(-)
+ plugins/smartcard/gsd-smartcard-manager.c | 452 ++++++++++++++++++++----------
+ 1 file changed, 305 insertions(+), 147 deletions(-)
 
 diff --git a/plugins/smartcard/gsd-smartcard-manager.c b/plugins/smartcard/gsd-smartcard-manager.c
 index a231e20..125d49f 100644
@@ -3801,5 +3801,68 @@ index a231e20..125d49f 100644
  
  #ifdef GSD_SMARTCARD_MANAGER_ENABLE_TEST
 -- 
-1.7.1
+2.7.0
+
+
+From 3eef33a36703300d0c3cc9ab51f09efe4659b399 Mon Sep 17 00:00:00 2001
+From: Ray Strode <rstrode@redhat.com>
+Date: Mon, 18 Jan 2016 14:49:27 -0500
+Subject: [PATCH 6/6] smartcard: allow smartcard slot id to be 0
+
+This is required by the specification and some
+PKCS11 modules rely on it working.
+---
+ plugins/smartcard/gsd-smartcard.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/plugins/smartcard/gsd-smartcard.c b/plugins/smartcard/gsd-smartcard.c
+index d5863c7..548315c 100644
+--- a/plugins/smartcard/gsd-smartcard.c
++++ b/plugins/smartcard/gsd-smartcard.c
+@@ -39,6 +39,8 @@ struct _GsdSmartcardPrivate {
+         GsdSmartcardState state;
+ 
+         CK_SLOT_ID slot_id;
++        guint slot_id_set : 1;
++
+         int slot_series;
+ 
+         PK11SlotInfo *slot;
+@@ -297,7 +299,7 @@ gsd_smartcard_set_name (GsdSmartcard *card,
+                                 int slot_id, slot_series;
+ 
+                                 slot_id = PK11_GetSlotID (card->priv->slot);
+-                                if (slot_id != card->priv->slot_id) {
++                                if (!card->priv->slot_id_set || slot_id != card->priv->slot_id) {
+                                         gsd_smartcard_set_slot_id (card, slot_id);
+                                 }
+ 
+@@ -320,7 +322,7 @@ static void
+ gsd_smartcard_set_slot_id (GsdSmartcard *card,
+                            int           slot_id)
+ {
+-        if (card->priv->slot_id != slot_id) {
++        if (!card->priv->slot_id_set || card->priv->slot_id != slot_id) {
+                 card->priv->slot_id = slot_id;
+ 
+                 if (card->priv->slot == NULL) {
+@@ -344,6 +346,8 @@ gsd_smartcard_set_slot_id (GsdSmartcard *card,
+                 }
+ 
+                 g_object_notify (G_OBJECT (card), "slot-id");
++
++                card->priv->slot_id_set = TRUE;
+         }
+ }
+ 
+@@ -435,7 +439,6 @@ _gsd_smartcard_new (SECMODModule *module,
+         GsdSmartcard *card;
+ 
+         g_return_val_if_fail (module != NULL, NULL);
+-        g_return_val_if_fail (slot_id >= 1, NULL);
+         g_return_val_if_fail (slot_series > 0, NULL);
+         g_return_val_if_fail (sizeof (gulong) == sizeof (slot_id), NULL);
+ 
+-- 
+2.7.0
 

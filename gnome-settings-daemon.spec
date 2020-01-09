@@ -2,7 +2,7 @@
 
 Name:		gnome-settings-daemon
 Version:	2.28.2
-Release:	31%{?dist}
+Release:	35%{?dist}
 Summary:	The daemon sharing settings from GNOME to GTK+/KDE applications
 
 Group:		System Environment/Daemons
@@ -162,6 +162,15 @@ Patch52: 0001-xrandr-explicitly-set-clone-state-variable-when-gene.patch
 # https://bugzilla.redhat.com/show_bug.cgi?id=1098370
 Patch53: 0001-housekeeping-plug-a-mem-leak.patch
 
+# https://bugzilla.redhat.com/show_bug.cgi?id=1196044
+Patch54: 0001-xrandr-Avoid-crash-when-Fn-F7-is-pressed-on-some-sys.patch
+
+# https://bugzilla.redhat.com/show_bug.cgi?id=1167519
+Patch55: 0001-media-keys-Handle-XF86AudioMicMute.patch
+
+# https://bugzilla.redhat.com/show_bug.cgi?id=1095019
+Patch56: 0001-wacom-Fix-type-of-data-passed-to-XIChangeDevicePrope.patch
+
 %description
 A daemon to share settings from GNOME to other applications. It also
 handles global keybindings, as well as a number of desktop-wide settings.
@@ -211,6 +220,9 @@ developing applications that use %{name}.
 %patch51 -p1 -b .function-keys
 %patch52 -p1 -b .fn-f8
 %patch53 -p1 -b .housekeeping-mem-leak
+%patch54 -p1 -b .fnf7-crash
+%patch55 -p1 -b .micmute
+%patch56 -p1 -b .wacom-reset-touch-buttons
 
 %build
 autoreconf -f -i
@@ -351,6 +363,22 @@ fi
 %{_libdir}/pkgconfig/gnome-settings-daemon.pc
 
 %changelog
+* Tue Jan 19 2016 Ray Strode <rstrode@redhat.com> - 2.28.2-35
+- Allow slot id 0 as a valid slot id
+  Resolves: #1139296
+
+* Mon Dec 08 2015 Carlos Garnacho <cgarnach@redhat.com> 2.28.2-34
+- wacom: Fix memory overread in call to XDeviceChangeProperty
+  Resolves: #1095019
+
+* Wed Nov 18 2015 Bastien Nocera <bnocera@redhat.com> 2.28.2-33
+- Add support for XF86MicMute key
+  Resolves: #1167519
+
+* Wed Nov 18 2015 Bastien Nocera <bnocera@redhat.com> 2.28.2-32
+- Fix possible Fn+F7 crash
+  Resolves: #1196044
+
 * Fri Jan 23 2015 Bastien Nocera <bnocera@redhat.com> 2.28.2-31
 - housekeeping: plug a mem leak
   Resolves: #1098370
