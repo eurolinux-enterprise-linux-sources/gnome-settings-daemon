@@ -2,7 +2,7 @@
 
 Name:		gnome-settings-daemon
 Version:	2.28.2
-Release:	35%{?dist}
+Release:	35%{?dist}.2
 Summary:	The daemon sharing settings from GNOME to GTK+/KDE applications
 
 Group:		System Environment/Daemons
@@ -363,6 +363,16 @@ fi
 %{_libdir}/pkgconfig/gnome-settings-daemon.pc
 
 %changelog
+* Wed Feb 08 2017 Ray Strode <rstrode@redhat.com> - 2.28.2-35.2
+- Another smartcard update to support drivers that don't
+  announce already inserted smartcards at startup
+  Related: #1299992
+
+* Tue Nov 29 2016 Ray Strode <rstrode@redhat.com> - 2.28.2-35.1
+- Small update to slot id 0 smartcard fix from 2.28.2-35
+  Resolves: #1400134
+  Related: 966658
+
 * Tue Jan 19 2016 Ray Strode <rstrode@redhat.com> - 2.28.2-35
 - Allow slot id 0 as a valid slot id
   Resolves: #1139296

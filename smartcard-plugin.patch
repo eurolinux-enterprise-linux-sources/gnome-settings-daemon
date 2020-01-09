@@ -1,7 +1,7 @@
 From 56f55e2890dc816e676690246fb6a9708b802a4a Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Mon, 19 Apr 2010 23:02:30 -0400
-Subject: [PATCH 1/6] Add smartcard plugin
+Subject: [PATCH 1/7] Add smartcard plugin
 
 This plugin listens for smartcard insertion and removal events and
 then locks the screen or forces a log out (depending on gconf) when
@@ -2816,7 +2816,7 @@ index 0000000..787c910
 From e1e010d08c2b8e48157201124d2dcc4d3f5e5aef Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Wed, 5 May 2010 14:14:00 -0400
-Subject: [PATCH 2/6] Always dist smartcard.gnome-settings-plugin
+Subject: [PATCH 2/7] Always dist smartcard.gnome-settings-plugin
 
 Before if the person who rolled the tarball lacked
 smartcard support on their system, then the build
@@ -2855,7 +2855,7 @@ index 97468cd..62e253e 100644
 From a916f86475a714b93dac9f81f3e073c4e162b11a Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Tue, 8 Jun 2010 17:56:22 -0400
-Subject: [PATCH 3/6] Fix build for --disable-smartcard-support
+Subject: [PATCH 3/7] Fix build for --disable-smartcard-support
 
 commit 4b334ddf6c53ce795063d44746a9a2d90fea85ff broke the
 build for --disable-smartcard-users.
@@ -2928,7 +2928,7 @@ index 62e253e..dcfaf49 100644
 From 4cdbb613f6e376b8cbf76da92f54d9f4fa84bb6a Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Fri, 16 Jul 2010 13:45:18 -0400
-Subject: [PATCH 4/6] Drop some dead code
+Subject: [PATCH 4/7] Drop some dead code
 
 ---
  plugins/smartcard/gsd-smartcard.c | 29 ++++++++++++++---------------
@@ -3004,7 +3004,7 @@ index 22f4e12..d5863c7 100644
 From de18d700f8a2d08fd0ff97cc9db8d977d935be42 Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Fri, 16 Jul 2010 13:54:41 -0400
-Subject: [PATCH 5/6] Support multiple smartcard drivers at once
+Subject: [PATCH 5/7] Support multiple smartcard drivers at once
 
 Previously we would look for the first available and
 loaded smartcard driver and only listen for events for cards
@@ -3807,7 +3807,7 @@ index a231e20..125d49f 100644
 From 3eef33a36703300d0c3cc9ab51f09efe4659b399 Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Mon, 18 Jan 2016 14:49:27 -0500
-Subject: [PATCH 6/6] smartcard: allow smartcard slot id to be 0
+Subject: [PATCH 6/7] smartcard: allow smartcard slot id to be 0
 
 This is required by the specification and some
 PKCS11 modules rely on it working.
@@ -3866,3 +3866,337 @@ index d5863c7..548315c 100644
 -- 
 2.7.0
 
+From 51242e6159108c8b154ea7bf83eb5937f77bfd79 Mon Sep 17 00:00:00 2001
+From: Ray Strode <rstrode@redhat.com>
+Date: Tue, 29 Nov 2016 11:02:54 -0500
+Subject: [PATCH] fixup! smartcard: allow smartcard slot id to be 0
+
+---
+ plugins/smartcard/gsd-smartcard.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/plugins/smartcard/gsd-smartcard.c b/plugins/smartcard/gsd-smartcard.c
+index 548315c..6cf2de3 100644
+--- a/plugins/smartcard/gsd-smartcard.c
++++ b/plugins/smartcard/gsd-smartcard.c
+@@ -130,61 +130,61 @@ gsd_smartcard_class_install_signals (GsdSmartcardClass *card_class)
+                 g_signal_new ("inserted",
+                           G_OBJECT_CLASS_TYPE (object_class),
+                           G_SIGNAL_RUN_LAST,
+                           G_STRUCT_OFFSET (GsdSmartcardClass,
+                                            inserted),
+                           NULL, NULL, g_cclosure_marshal_VOID__VOID,
+                           G_TYPE_NONE, 0);
+ 
+         gsd_smartcard_signals[REMOVED] =
+                 g_signal_new ("removed",
+                           G_OBJECT_CLASS_TYPE (object_class),
+                           G_SIGNAL_RUN_LAST,
+                           G_STRUCT_OFFSET (GsdSmartcardClass,
+                                            removed),
+                           NULL, NULL, g_cclosure_marshal_VOID__VOID,
+                           G_TYPE_NONE, 0);
+ }
+ 
+ static void
+ gsd_smartcard_class_install_properties (GsdSmartcardClass *card_class)
+ {
+         GObjectClass *object_class;
+         GParamSpec *param_spec;
+ 
+         object_class = G_OBJECT_CLASS (card_class);
+         object_class->set_property = gsd_smartcard_set_property;
+         object_class->get_property = gsd_smartcard_get_property;
+ 
+         param_spec = g_param_spec_ulong ("slot-id", _("Slot ID"),
+                                    _("The slot the card is in"),
+-                                   1, G_MAXULONG,
++                                   0, G_MAXULONG,
+                                    GSD_SMARTCARD_DEFAULT_SLOT_ID,
+                                    G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY);
+         g_object_class_install_property (object_class, PROP_SLOT_ID, param_spec);
+ 
+         param_spec = g_param_spec_int ("slot-series", _("Slot Series"),
+                                    _("per-slot card identifier"),
+                                    -1, G_MAXINT,
+                                    GSD_SMARTCARD_DEFAULT_SLOT_SERIES,
+                                    G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY);
+         g_object_class_install_property (object_class, PROP_SLOT_SERIES, param_spec);
+ 
+         param_spec = g_param_spec_string ("name", _("name"),
+                                       _("name"), NULL,
+                                       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY);
+         g_object_class_install_property (object_class, PROP_NAME, param_spec);
+ 
+         param_spec = g_param_spec_pointer ("module", _("Module"),
+                                        _("smartcard driver"),
+                                        G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY);
+         g_object_class_install_property (object_class, PROP_MODULE, param_spec);
+ }
+ 
+ static void
+ gsd_smartcard_set_property (GObject       *object,
+                             guint          prop_id,
+                             const GValue  *value,
+                             GParamSpec    *pspec)
+ {
+         GsdSmartcard *card = GSD_SMARTCARD (object);
+ 
+-- 
+2.9.3
+
+From 954809786cd793d94a1eeacb20a1f4392d6480b7 Mon Sep 17 00:00:00 2001
+From: Ray Strode <rstrode@redhat.com>
+Date: Wed, 1 Feb 2017 14:42:54 -0500
+Subject: [PATCH 7/7] smartcard: manually emit insertion event at startup
+
+At the moment we rely on getting an insertion event for any already
+inserted smartcards at startup time, from NSS.  That apparently doesn't
+happen for all drivers, though.
+
+This commit changes things up a bit so that we do the insertion event
+ourselves, and additionally add some guard code to prevent spurious
+insertion events from being emitted.
+---
+ plugins/smartcard/gsd-smartcard-manager.c | 40 +++++++++++++++++++++----------
+ 1 file changed, 27 insertions(+), 13 deletions(-)
+
+diff --git a/plugins/smartcard/gsd-smartcard-manager.c b/plugins/smartcard/gsd-smartcard-manager.c
+index 125d49f..031ed83 100644
+--- a/plugins/smartcard/gsd-smartcard-manager.c
++++ b/plugins/smartcard/gsd-smartcard-manager.c
+@@ -111,60 +111,63 @@ static void gsd_smartcard_manager_class_install_properties (GsdSmartcardManagerC
+ static void gsd_smartcard_manager_set_property (GObject       *object,
+                                                 guint          prop_id,
+                                                 const GValue  *value,
+                                                 GParamSpec    *pspec);
+ static void gsd_smartcard_manager_get_property (GObject    *object,
+                                                 guint       prop_id,
+                                                 GValue     *value,
+                                                 GParamSpec *pspec);
+ static void gsd_smartcard_manager_set_module_path (GsdSmartcardManager *manager,
+                                                    const char          *module_path);
+ static void gsd_smartcard_manager_card_removed_handler (GsdSmartcardManager *manager,
+                                                         GsdSmartcard        *card);
+ static void gsd_smartcard_manager_card_inserted_handler (GsdSmartcardManager *manager_class,
+                                                          GsdSmartcard        *card);
+ static gboolean gsd_smartcard_manager_stop_now (GsdSmartcardManager *manager);
+ static void gsd_smartcard_manager_queue_stop (GsdSmartcardManager *manager);
+
+ static GsdSmartcardManagerWorker *gsd_smartcard_manager_create_worker (GsdSmartcardManager  *manager,
+                                                                        SECMODModule         *module);
+
+ static GsdSmartcardManagerWorker * gsd_smartcard_manager_worker_new (GsdSmartcardManager *manager,
+                                                                      int                  worker_fd,
+                                                                      int                  manager_fd,
+                                                                      SECMODModule        *module);
+ static void gsd_smartcard_manager_worker_free (GsdSmartcardManagerWorker *worker);
+ static gboolean open_pipe (int *write_fd, int *read_fd);
+ static gboolean read_bytes (int fd, gpointer bytes, gsize num_bytes);
+ static gboolean write_bytes (int fd, gconstpointer bytes, gsize num_bytes);
+ static GsdSmartcard *read_smartcard (int fd, SECMODModule *module);
+ static gboolean write_smartcard (int fd, GsdSmartcard *card);
++static gboolean gsd_smartcard_manager_worker_emit_smartcard_inserted (GsdSmartcardManagerWorker  *worker,
++                                                                      GsdSmartcard               *card,
++                                                                      GError                    **error);
+
+ enum {
+         PROP_0 = 0,
+         PROP_MODULE_PATH,
+         NUMBER_OF_PROPERTIES
+ };
+
+ enum {
+         SMARTCARD_INSERTED = 0,
+         SMARTCARD_REMOVED,
+         ERROR,
+         NUMBER_OF_SIGNALS
+ };
+
+ static guint gsd_smartcard_manager_signals[NUMBER_OF_SIGNALS];
+
+ G_DEFINE_TYPE (GsdSmartcardManager,
+                gsd_smartcard_manager,
+                G_TYPE_OBJECT);
+
+ static void
+ gsd_smartcard_manager_class_init (GsdSmartcardManagerClass *manager_class)
+ {
+         GObjectClass *gobject_class;
+
+         gobject_class = G_OBJECT_CLASS (manager_class);
+
+         gobject_class->finalize = gsd_smartcard_manager_finalize;
+
+         gsd_smartcard_manager_class_install_signals (manager_class);
+@@ -829,60 +832,64 @@ out:
+
+ static void
+ gsd_smartcard_manager_get_all_cards (GsdSmartcardManager *manager)
+ {
+         GList *node;
+         int i;
+
+         node = manager->priv->workers;
+         while (node != NULL) {
+
+                 GsdSmartcardManagerWorker *worker;
+
+                 worker = (GsdSmartcardManagerWorker *) node->data;
+
+                 for (i = 0; i < worker->module->slotCount; i++) {
+                         GsdSmartcard *card;
+                         CK_SLOT_ID    slot_id;
+                         int          slot_series;
+                         char         *card_name;
+
+                         slot_id = PK11_GetSlotID (worker->module->slots[i]);
+                         slot_series = PK11_GetSlotSeries (worker->module->slots[i]);
+
+                         card = _gsd_smartcard_new (worker->module,
+                                                    slot_id, slot_series);
+
+                         card_name = gsd_smartcard_get_name (card);
+
+                         g_hash_table_replace (manager->priv->smartcards,
+                                               card_name, card);
++
++                        if (PK11_IsPresent (worker->module->slots[i])) {
++                                gsd_smartcard_manager_worker_emit_smartcard_inserted (worker, card, NULL);
++                        }
+                 }
+                 node = node->next;
+         }
+ }
+
+ static GsdSmartcardManagerWorker *
+ start_worker (GsdSmartcardManager  *manager,
+               SECMODModule         *module,
+               GError              **error)
+ {
+         GIOChannel *io_channel;
+         GSource *source;
+         GIOFlags channel_flags;
+         GsdSmartcardManagerWorker *worker;
+
+         worker = gsd_smartcard_manager_create_worker (manager, module);
+
+         if (worker == NULL) {
+                 g_set_error (error,
+                              GSD_SMARTCARD_MANAGER_ERROR,
+                              GSD_SMARTCARD_MANAGER_ERROR_WATCHING_FOR_EVENTS,
+                              _("could not watch for incoming card events - %s"),
+                              g_strerror (errno));
+
+                 goto out;
+         }
+
+         io_channel = g_io_channel_unix_new (worker->manager_fd);
+
+         channel_flags = g_io_channel_get_flags (io_channel);
+@@ -1279,83 +1286,90 @@ gsd_smartcard_manager_worker_watch_for_and_process_event (GsdSmartcardManagerWor
+                  * code to a translated string?
+                  */
+                 g_set_error (error, GSD_SMARTCARD_MANAGER_ERROR,
+                              GSD_SMARTCARD_MANAGER_ERROR_WITH_NSS,
+                              _("encountered unexpected error while "
+                                "waiting for smartcard events"));
+                 goto out;
+         }
+
+         /* the slot id and series together uniquely identify a card.
+          * You can never have two cards with the same slot id at the
+          * same time, however (I think), so we can key off of it.
+          */
+         slot_id = PK11_GetSlotID (slot);
+         slot_series = PK11_GetSlotSeries (slot);
+
+         /* First check to see if there is a card that we're currently
+          * tracking in the slot.
+          */
+         key = g_new (CK_SLOT_ID, 1);
+         *key = slot_id;
+         card = g_hash_table_lookup (worker->smartcards, key);
+
+         if (card != NULL) {
+                 card_slot_series = gsd_smartcard_get_slot_series (card);
+         } else {
+                 card_slot_series = -1;
+         }
+
+         if (PK11_IsPresent (slot)) {
++                gboolean already_inserted = FALSE;
++
+                 /* Now, check to see if their is a new card in the slot.
+                  * If there was a different card in the slot now than
+                  * there was before, then we need to emit a removed signal
+                  * for the old card (we don't want unpaired insertion events).
+                  */
+-                if ((card != NULL) &&
+-                    card_slot_series != slot_series) {
+-                        if (!gsd_smartcard_manager_worker_emit_smartcard_removed (worker, card, &processing_error)) {
+-                                g_propagate_error (error, processing_error);
+-                                goto out;
++                if (card != NULL) {
++                        if (card_slot_series != slot_series) {
++                                if (!gsd_smartcard_manager_worker_emit_smartcard_removed (worker, card, &processing_error)) {
++                                        g_propagate_error (error, processing_error);
++                                        goto out;
++                                }
++                        } else {
++                                already_inserted = TRUE;
+                         }
+                 }
+
+-                card = _gsd_smartcard_new (worker->module,
+-                                           slot_id, slot_series);
++                if (!already_inserted) {
++                        card = _gsd_smartcard_new (worker->module,
++                                                   slot_id, slot_series);
+
+-                g_hash_table_replace (worker->smartcards,
+-                                      key, card);
+-                key = NULL;
++                        g_hash_table_replace (worker->smartcards,
++                                              key, card);
++                        key = NULL;
+
+-                if (!gsd_smartcard_manager_worker_emit_smartcard_inserted (worker, card, &processing_error)) {
+-                        g_propagate_error (error, processing_error);
+-                        goto out;
++                        if (!gsd_smartcard_manager_worker_emit_smartcard_inserted (worker, card, &processing_error)) {
++                                g_propagate_error (error, processing_error);
++                                goto out;
++                        }
+                 }
+         } else {
+                 /* if we aren't tracking the card, just discard the event.
+                  * We don't want unpaired remove events.  Note on startup
+                  * NSS will generate an "insertion" event if a card is
+                  * already inserted in the slot.
+                  */
+                 if ((card != NULL)) {
+                         /* FIXME: i'm not sure about this code.  Maybe we
+                          * shouldn't do this at all, or maybe we should do it
+                          * n times (where n = slot_series - card_slot_series + 1)
+                          *
+                          * Right now, i'm just doing it once.
+                          */
+                         if ((slot_series - card_slot_series) > 1) {
+
+                                 if (!gsd_smartcard_manager_worker_emit_smartcard_removed (worker, card, &processing_error)) {
+                                         g_propagate_error (error, processing_error);
+                                         goto out;
+                                 }
+                                 g_hash_table_remove (worker->smartcards, key);
+
+                                 card = _gsd_smartcard_new (worker->module,
+                                                                 slot_id, slot_series);
+                                 g_hash_table_replace (worker->smartcards,
+                                                       key, card);
+                                 key = NULL;
+                                 if (!gsd_smartcard_manager_worker_emit_smartcard_inserted (worker, card, &processing_error)) {
+                                         g_propagate_error (error, processing_error);
+                                         goto out;
+--
+2.9.3
