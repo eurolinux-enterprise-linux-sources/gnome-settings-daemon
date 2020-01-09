@@ -2,7 +2,7 @@
 
 Name:		gnome-settings-daemon
 Version:	2.28.2
-Release:	30%{?dist}
+Release:	31%{?dist}
 Summary:	The daemon sharing settings from GNOME to GTK+/KDE applications
 
 Group:		System Environment/Daemons
@@ -158,6 +158,10 @@ Patch51: 0001-common-Fix-function-keys-not-being-grabbed.patch
 # https://bugzilla.redhat.com/show_bug.cgi?id=824757
 Patch52: 0001-xrandr-explicitly-set-clone-state-variable-when-gene.patch
 
+# https://bugzilla.gnome.org/show_bug.cgi?id=668776
+# https://bugzilla.redhat.com/show_bug.cgi?id=1098370
+Patch53: 0001-housekeeping-plug-a-mem-leak.patch
+
 %description
 A daemon to share settings from GNOME to other applications. It also
 handles global keybindings, as well as a number of desktop-wide settings.
@@ -206,6 +210,7 @@ developing applications that use %{name}.
 %patch50 -p1 -b .define
 %patch51 -p1 -b .function-keys
 %patch52 -p1 -b .fn-f8
+%patch53 -p1 -b .housekeeping-mem-leak
 
 %build
 autoreconf -f -i
@@ -346,6 +351,10 @@ fi
 %{_libdir}/pkgconfig/gnome-settings-daemon.pc
 
 %changelog
+* Fri Jan 23 2015 Bastien Nocera <bnocera@redhat.com> 2.28.2-31
+- housekeeping: plug a mem leak
+  Resolves: #1098370
+
 * Mon Dec 17 2012 Olivier Fourdan <ofourdan@redhat.com> 2.28.2-30
 - wacom: Fix multiple mode-switch buttons as found on Cintiq 24HD (#886922)
   Resolves: #886922
