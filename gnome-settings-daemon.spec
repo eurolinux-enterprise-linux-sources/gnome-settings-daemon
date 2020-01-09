@@ -2,7 +2,7 @@
 
 Name:		gnome-settings-daemon
 Version:	2.28.2
-Release:	35%{?dist}.2
+Release:	39%{?dist}
 Summary:	The daemon sharing settings from GNOME to GTK+/KDE applications
 
 Group:		System Environment/Daemons
@@ -80,6 +80,9 @@ Patch12: smartcard-plugin.patch
 # updated translations
 # https://bugzilla.redhat.com/show_bug.cgi?id=589207
 Patch13: gnome-settings-daemon-translations.patch
+# more translations
+# https://bugzilla.redhat.com/show_bug.cgi?id=1333641
+Patch40: gnome-settings-daemon-2.28.2-EL6.9_translations.patch
 
 # https://bugzilla.gnome.org/show_bug.cgi?id=621046
 # https://bugzilla.redhat.com/show_bug.cgi?id=582564
@@ -171,6 +174,9 @@ Patch55: 0001-media-keys-Handle-XF86AudioMicMute.patch
 # https://bugzilla.redhat.com/show_bug.cgi?id=1095019
 Patch56: 0001-wacom-Fix-type-of-data-passed-to-XIChangeDevicePrope.patch
 
+# https://bugzilla.redhat.com/show_bug.cgi?id=966658
+Patch57: gsd-wacom-no-per-machine-config-file.patch
+
 %description
 A daemon to share settings from GNOME to other applications. It also
 handles global keybindings, as well as a number of desktop-wide settings.
@@ -196,6 +202,7 @@ developing applications that use %{name}.
 %patch11 -p1 -b .dir-prefix
 %patch12 -p1 -b .smartcard-plugin
 %patch13 -p1 -b .translations
+%patch40 -p2 -b .translations2
 %patch14 -p1 -b .fix-hotplug-configuration
 %patch15 -p1 -b .windows-p
 %patch16 -p1 -b .virtual
@@ -223,6 +230,7 @@ developing applications that use %{name}.
 %patch54 -p1 -b .fnf7-crash
 %patch55 -p1 -b .micmute
 %patch56 -p1 -b .wacom-reset-touch-buttons
+%patch57 -p1 -b .no-per-machine-config-file
 
 %build
 autoreconf -f -i
@@ -363,15 +371,23 @@ fi
 %{_libdir}/pkgconfig/gnome-settings-daemon.pc
 
 %changelog
-* Wed Feb 08 2017 Ray Strode <rstrode@redhat.com> - 2.28.2-35.2
+* Wed Feb 08 2017 Ray Strode <rstrode@redhat.com> - 2.28.2-39
 - Another smartcard update to support drivers that don't
   announce already inserted smartcards at startup
   Related: #1299992
 
-* Tue Nov 29 2016 Ray Strode <rstrode@redhat.com> - 2.28.2-35.1
+* Wed Jan 25 2017 Bastien Nocera <bnocera@redhat.com> - 2.28.2-38
+- Add translation patch
+  Resolves: #1333641
+
+* Tue Nov 29 2016 Ray Strode <rstrode@redhat.com> - 2.28.2-37
 - Small update to slot id 0 smartcard fix from 2.28.2-35
-  Resolves: #1400134
+  Resolves: #1299992
   Related: 966658
+
+* Fri Oct 14 2016 Carlos Garnacho <cgarnach@redhat.com> - 2.28.2-36
+- Check ~/.config/gnome-settings-daemon/no-per-machine-config for wacom settings
+  Resolves: #966658
 
 * Tue Jan 19 2016 Ray Strode <rstrode@redhat.com> - 2.28.2-35
 - Allow slot id 0 as a valid slot id
