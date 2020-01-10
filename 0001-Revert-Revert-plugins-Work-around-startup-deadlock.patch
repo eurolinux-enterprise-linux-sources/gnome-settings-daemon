@@ -1,33 +1,46 @@
-From a89835db96703a861c14cc36211511ecfcb7d3d6 Mon Sep 17 00:00:00 2001
+From 3b383ffcb65dcd318cdb9c1bf3e039007e628ec3 Mon Sep 17 00:00:00 2001
 From: Rui Matos <tiagomatos@gmail.com>
 Date: Wed, 11 Oct 2017 18:08:52 +0200
 Subject: [PATCH 1/3] Revert "Revert "plugins: Work-around startup deadlock""
 
 This reverts commit e0f230ce6124fac47bc0810d30ff78ec327152ca.
 ---
- configure.ac                         | 2 +-
  plugins/common/daemon-skeleton-gtk.h | 4 ++++
  plugins/common/daemon-skeleton.h     | 4 ++++
- 3 files changed, 9 insertions(+), 1 deletion(-)
+ 2 files changed, 8 insertions(+)
 
-diff --git a/configure.ac b/configure.ac
-index c74ba250..3073017d 100644
---- a/configure.ac
-+++ b/configure.ac
-@@ -42,7 +42,7 @@ dnl ---------------------------------------------------------------------------
- dnl - Dependencies
- dnl ---------------------------------------------------------------------------
- 
--GLIB_REQUIRED_VERSION=2.53.0
-+GLIB_REQUIRED_VERSION=2.44.0
- GIO_REQUIRED_VERSION=${GLIB_REQUIRED_VERSION}
- GTK_REQUIRED_VERSION=3.15.3
- GCONF_REQUIRED_VERSION=2.6.1
 diff --git a/plugins/common/daemon-skeleton-gtk.h b/plugins/common/daemon-skeleton-gtk.h
-index 27aade6c..46d0ed1a 100644
+index 2194b3d6..500ff3de 100644
 --- a/plugins/common/daemon-skeleton-gtk.h
 +++ b/plugins/common/daemon-skeleton-gtk.h
-@@ -199,6 +199,10 @@ main (int argc, char **argv)
+@@ -172,60 +172,64 @@ set_empty_gtk_theme (gboolean set)
+ 		/* Override GTK_THEME to reduce overhead of CSS engine. By using
+ 		 * GTK_THEME environment variable, GtkSettings is not allowed to
+ 		 * initially parse the Adwaita theme.
+ 		 *
+ 		 * https://bugzilla.gnome.org/show_bug.cgi?id=780555 */
+ 		old_gtk_theme = g_strdup (g_getenv ("GTK_THEME"));
+ 		g_setenv ("GTK_THEME", "Disabled", TRUE);
+ 	} else {
+ 		/* GtkSettings has loaded, so we can drop GTK_THEME used to initialize
+ 		 * our internal theme. Only the main thread accesses the GTK_THEME
+ 		 * environment variable, so this is safe to release. */
+ 		if (old_gtk_theme != NULL)
+ 			g_setenv ("GTK_THEME", old_gtk_theme, TRUE);
+ 		else
+ 			g_unsetenv ("GTK_THEME");
+ 	}
+ }
+ 
+ int
+ main (int argc, char **argv)
+ {
+         GError  *error;
+ 
+         bindtextdomain (GETTEXT_PACKAGE, GNOME_SETTINGS_LOCALEDIR);
+         bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+         textdomain (GETTEXT_PACKAGE);
+         setlocale (LC_ALL, "");
  
          set_empty_gtk_theme (TRUE);
  
@@ -38,11 +51,65 @@ index 27aade6c..46d0ed1a 100644
          gdk_set_allowed_backends ("x11");
  
          error = NULL;
+         if (! gtk_init_with_args (&argc, &argv, PLUGIN_NAME, entries, NULL, &error)) {
+                 if (error != NULL) {
+                         fprintf (stderr, "%s\n", error->message);
+                         g_error_free (error);
+                 }
+                 exit (1);
+         }
+ 
+         set_empty_gtk_theme (FALSE);
+ 
+         if (verbose) {
+                 g_setenv ("G_MESSAGES_DEBUG", "all", TRUE);
+                 /* Work around GLib not flushing the output for us by explicitly
+                  * setting buffering to a sane behaviour. This is important
+                  * during testing when the output is not going to a TTY and
+                  * we are reading messages from g_debug on stdout.
+                  *
+                  * See also
+                  *  https://bugzilla.gnome.org/show_bug.cgi?id=792432
+                  */
+                 setlinebuf (stdout);
+         }
+ 
+ 	if (timeout > 0) {
+ 		guint id;
+ 		id = g_timeout_add_seconds (timeout, (GSourceFunc) gtk_main_quit, NULL);
+ 		g_source_set_name_by_id (id, "[gnome-settings-daemon] gtk_main_quit");
 diff --git a/plugins/common/daemon-skeleton.h b/plugins/common/daemon-skeleton.h
-index e4641fcc..cdd7bc2a 100644
+index 367ac1ec..83493ca1 100644
 --- a/plugins/common/daemon-skeleton.h
 +++ b/plugins/common/daemon-skeleton.h
-@@ -174,6 +174,10 @@ main (int argc, char **argv)
+@@ -147,60 +147,64 @@ on_client_registered (GObject             *source_object,
+ static void
+ register_with_gnome_session (GMainLoop *loop)
+ {
+ 	GDBusProxy *proxy;
+ 	const char *startup_id;
+ 
+ 	proxy = G_DBUS_PROXY (gnome_settings_bus_get_session_proxy ());
+ 	startup_id = g_getenv ("DESKTOP_AUTOSTART_ID");
+ 	g_dbus_proxy_call (proxy,
+ 			   "RegisterClient",
+ 			   g_variant_new ("(ss)", dummy_name ? dummy_name : PLUGIN_NAME, startup_id ? startup_id : ""),
+ 			   G_DBUS_CALL_FLAGS_NONE,
+ 			   -1,
+ 			   NULL,
+ 			   (GAsyncReadyCallback) on_client_registered,
+ 			   loop);
+ }
+ 
+ int
+ main (int argc, char **argv)
+ {
+         GError *error = NULL;
+         GOptionContext *context;
+         GMainLoop *loop;
+ 
+         bindtextdomain (GETTEXT_PACKAGE, GNOME_SETTINGS_LOCALEDIR);
+         bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
          textdomain (GETTEXT_PACKAGE);
          setlocale (LC_ALL, "");
  
@@ -53,6 +120,33 @@ index e4641fcc..cdd7bc2a 100644
          context = g_option_context_new (NULL);
          g_option_context_add_main_entries (context, entries, GETTEXT_PACKAGE);
          if (!g_option_context_parse (context, &argc, &argv, &error)) {
+                 fprintf (stderr, "%s\n", error->message);
+                 g_error_free (error);
+                 exit (1);
+         }
+         g_option_context_free (context);
+ 
+ 	loop = g_main_loop_new (NULL, FALSE);
+ 
+         if (verbose) {
+                 g_setenv ("G_MESSAGES_DEBUG", "all", TRUE);
+                 /* Work around GLib not flushing the output for us by explicitly
+                  * setting buffering to a sane behaviour. This is important
+                  * during testing when the output is not going to a TTY and
+                  * we are reading messages from g_debug on stdout.
+                  *
+                  * See also
+                  *  https://bugzilla.gnome.org/show_bug.cgi?id=792432
+                  */
+                 setlinebuf (stdout);
+         }
+ 
+ 	if (timeout > 0) {
+ 		guint id;
+ 		id = g_timeout_add_seconds (timeout, (GSourceFunc) g_main_loop_quit, loop);
+ 		g_source_set_name_by_id (id, "[gnome-settings-daemon] g_main_loop_quit");
+ 	}
+ 
 -- 
-2.13.5
+2.17.0
 

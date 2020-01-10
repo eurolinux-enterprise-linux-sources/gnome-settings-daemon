@@ -1,18 +1,45 @@
-From dc9f7c0adc0b65aec010586e8b9848db5f0964de Mon Sep 17 00:00:00 2001
+From 9b03a1eb04442c74dd990cda0f44ccf283413a75 Mon Sep 17 00:00:00 2001
 From: Rui Matos <tiagomatos@gmail.com>
 Date: Wed, 11 Oct 2017 18:10:54 +0200
 Subject: [PATCH 3/3] Revert "sharing: Use systemd to track running services"
 
 This reverts commit e0b7f4143bdd201c824499dd09159f5890a07c6a.
 ---
- plugins/sharing/gsd-sharing-manager.c | 114 ++++++++++++++++------------------
+ plugins/sharing/gsd-sharing-manager.c | 114 +++++++++++++-------------
  1 file changed, 55 insertions(+), 59 deletions(-)
 
 diff --git a/plugins/sharing/gsd-sharing-manager.c b/plugins/sharing/gsd-sharing-manager.c
 index 26663442..b24c4814 100644
 --- a/plugins/sharing/gsd-sharing-manager.c
 +++ b/plugins/sharing/gsd-sharing-manager.c
-@@ -38,6 +38,8 @@
+@@ -11,60 +11,62 @@
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  * GNU General Public License for more details.
+  *
+  * You should have received a copy of the GNU General Public License
+  * along with this program; if not, see <http://www.gnu.org/licenses/>.
+  *
+  */
+ 
+ #include "config.h"
+ 
+ #include <locale.h>
+ #include <glib.h>
+ #include <gio/gio.h>
+ #include <gio/gdesktopappinfo.h>
+ #include <glib/gstdio.h>
+ 
+ #ifdef HAVE_NETWORK_MANAGER
+ #include <NetworkManager.h>
+ #endif /* HAVE_NETWORK_MANAGER */
+ 
+ #include "gnome-settings-profile.h"
+ #include "gsd-sharing-manager.h"
+ #include "gsd-sharing-enums.h"
+ 
+ #define GSD_SHARING_MANAGER_GET_PRIVATE(o) (G_TYPE_INSTANCE_GET_PRIVATE ((o), GSD_TYPE_SHARING_MANAGER, GsdSharingManagerPrivate))
+ 
  typedef struct {
          const char  *name;
          GSettings   *settings;
@@ -21,7 +48,61 @@ index 26663442..b24c4814 100644
  } ServiceInfo;
  
  struct GsdSharingManagerPrivate
-@@ -104,72 +106,48 @@ static const char * const services[] = {
+ {
+         GDBusNodeInfo           *introspection_data;
+         guint                    name_id;
+         GDBusConnection         *connection;
+ 
+         GCancellable            *cancellable;
+ #ifdef HAVE_NETWORK_MANAGER
+         NMClient                *client;
+ #endif /* HAVE_NETWORK_MANAGER */
+ 
+         GHashTable              *services;
+ 
+         char                    *current_network;
+         char                    *current_network_name;
+         char                    *carrier_type;
+         GsdSharingStatus         sharing_status;
+ };
+ 
+ #define GSD_DBUS_NAME "org.gnome.SettingsDaemon"
+ #define GSD_DBUS_PATH "/org/gnome/SettingsDaemon"
+ #define GSD_DBUS_BASE_INTERFACE "org.gnome.SettingsDaemon"
+ 
+ #define GSD_SHARING_DBUS_NAME GSD_DBUS_NAME ".Sharing"
+ #define GSD_SHARING_DBUS_PATH GSD_DBUS_PATH "/Sharing"
+ 
+ static const gchar introspection_xml[] =
+ "<node>"
+@@ -77,176 +79,170 @@ static const gchar introspection_xml[] =
+ "    <method name='EnableService'>"
+ "      <arg name='service-name' direction='in' type='s'/>"
+ "    </method>"
+ "    <method name='DisableService'>"
+ "      <arg name='service-name' direction='in' type='s'/>"
+ "      <arg name='network' direction='in' type='s'/>"
+ "    </method>"
+ "    <method name='ListNetworks'>"
+ "      <arg name='service-name' direction='in' type='s'/>"
+ "      <arg name='networks' direction='out' type='a(sss)'/>"
+ "    </method>"
+ "  </interface>"
+ "</node>";
+ 
+ static void     gsd_sharing_manager_class_init  (GsdSharingManagerClass *klass);
+ static void     gsd_sharing_manager_init        (GsdSharingManager      *manager);
+ static void     gsd_sharing_manager_finalize    (GObject                *object);
+ 
+ G_DEFINE_TYPE (GsdSharingManager, gsd_sharing_manager, G_TYPE_OBJECT)
+ 
+ static gpointer manager_object = NULL;
+ 
+ static const char * const services[] = {
+         "rygel",
+         "vino-server",
+         "gnome-remote-desktop",
+         "gnome-user-share-webdav"
  };
  
  static void
@@ -125,10 +206,35 @@ index 26663442..b24c4814 100644
  }
  
  #ifdef HAVE_NETWORK_MANAGER
-@@ -202,6 +180,22 @@ service_is_enabled_on_current_connection (GsdSharingManager *manager,
+ static gboolean
+ service_is_enabled_on_current_connection (GsdSharingManager *manager,
+                                           ServiceInfo       *service)
+ {
+         char **connections;
+         int j;
+         gboolean ret;
+         connections = g_settings_get_strv (service->settings, "enabled-connections");
+         ret = FALSE;
+         for (j = 0; connections[j] != NULL; j++) {
+                 if (g_strcmp0 (connections[j], manager->priv->current_network) == 0) {
+                         ret = TRUE;
+                         break;
+                 }
+         }
+ 
+         g_strfreev (connections);
+         return ret;
+ }
+ #else
+ static gboolean
+ service_is_enabled_on_current_connection (GsdSharingManager *manager,
+                                           ServiceInfo       *service)
+ {
+         return FALSE;
+ }
  #endif /* HAVE_NETWORK_MANAGER */
  
- static void
++static void
 +gsd_sharing_manager_stop_service (GsdSharingManager *manager,
 +                                  ServiceInfo       *service)
 +{
@@ -144,11 +250,18 @@ index 26663442..b24c4814 100644
 +        service->started = FALSE;
 +}
 +
-+static void
+ static void
  gsd_sharing_manager_sync_services (GsdSharingManager *manager)
  {
          GList *services, *l;
-@@ -216,10 +210,12 @@ gsd_sharing_manager_sync_services (GsdSharingManager *manager)
+ 
+         services = g_hash_table_get_values (manager->priv->services);
+ 
+         for (l = services; l != NULL; l = l->next) {
+                 ServiceInfo *service = l->data;
+                 gboolean should_be_started = FALSE;
+ 
+                 if (manager->priv->sharing_status == GSD_SHARING_STATUS_AVAILABLE &&
                      service_is_enabled_on_current_connection (manager, service))
                          should_be_started = TRUE;
  
@@ -165,6 +278,33 @@ index 26663442..b24c4814 100644
          }
          g_list_free (services);
  }
+ 
+ #ifdef HAVE_NETWORK_MANAGER
+ static void
+ properties_changed (GsdSharingManager *manager)
+ {
+         GVariantBuilder props_builder;
+         GVariant *props_changed = NULL;
+ 
+         /* not yet connected to the session bus */
+         if (manager->priv->connection == NULL)
+                 return;
+ 
+         g_variant_builder_init (&props_builder, G_VARIANT_TYPE ("a{sv}"));
+ 
+         g_variant_builder_add (&props_builder, "{sv}", "CurrentNetwork",
+                                g_variant_new_string (manager->priv->current_network));
+         g_variant_builder_add (&props_builder, "{sv}", "CurrentNetworkName",
+                                g_variant_new_string (manager->priv->current_network_name));
+         g_variant_builder_add (&props_builder, "{sv}", "CarrierType",
+                                g_variant_new_string (manager->priv->carrier_type));
+         g_variant_builder_add (&props_builder, "{sv}", "SharingStatus",
+                                g_variant_new_uint32 (manager->priv->sharing_status));
+ 
+         props_changed = g_variant_new ("(s@a{sv}@as)", GSD_SHARING_DBUS_NAME,
+                                        g_variant_builder_end (&props_builder),
+                                        g_variant_new_strv (NULL, 0));
+ 
 -- 
-2.13.5
+2.17.0
 

@@ -1,4 +1,4 @@
-From 492b0d048e126b690754cb3cac29eabfa608a9d9 Mon Sep 17 00:00:00 2001
+From 3aa4de5e6f2b698abf063ddbea5008f5b732aa18 Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Fri, 9 Feb 2018 16:40:53 -0500
 Subject: [PATCH 2/2] smartcard: handle a smartcard getting removed very
@@ -15,7 +15,7 @@ smartcard alias object that's around even if the login token isn't.
 Once the login token does show up it gets synchronized with it, so
 both object paths refer to the same underlying token.
 ---
- plugins/smartcard/gsd-smartcard-service.c | 82 +++++++++++++++++++++++++++++++
+ plugins/smartcard/gsd-smartcard-service.c | 82 +++++++++++++++++++++++
  1 file changed, 82 insertions(+)
 
 diff --git a/plugins/smartcard/gsd-smartcard-service.c b/plugins/smartcard/gsd-smartcard-service.c
@@ -380,5 +380,5 @@ index 0710334b..6969ff34 100644
          RegisterNewTokenOperation *operation;
          SECMODModule *driver;
 -- 
-2.14.3
+2.17.0
 

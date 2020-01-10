@@ -1,19 +1,20 @@
 %global glib2_version 2.53.0
 %global gtk3_version 3.15.3
-%global gnome_desktop_version 3.11.1
+%global gnome_desktop_version 3.27.90
 %global libgweather_version 3.9.5
 %global gsettings_desktop_schemas_version 3.23.3
 %global geocode_glib_version 3.10.0
 %global geoclue_version 2.3.1
 
 Name:           gnome-settings-daemon
-Version:        3.26.2
-Release:        9%{?dist}
+Version:        3.28.1
+Release:        2%{?dist}
 Summary:        The daemon sharing settings from GNOME to GTK+/KDE applications
 
 License:        GPLv2+
 URL:            https://download.gnome.org/sources/%{name}
-Source0:        https://download.gnome.org/sources/%{name}/3.26/%{name}-%{version}.tar.xz
+Source0:        https://download.gnome.org/sources/%{name}/3.28/%{name}-%{version}.tar.xz
+Source1:        org.gnome.settings-daemon.plugins.power.gschema.override
 
 Patch0:         0001-Revert-Revert-plugins-Work-around-startup-deadlock.patch
 Patch1:         0002-Revert-sharing-Fix-function-arguments.patch
@@ -24,13 +25,16 @@ Patch11:        0002-account-reshow-the-notification-when-screen-unlocks.patch
 Patch12:        0003-account-display-nag-screen-periodically.patch
 
 Patch20:        0001-housekeeping-Add-a-GPU-memory-usage-notification.patch
-Patch21:        0001-common-Ensure-screen-integrated-devices-get-remapped.patch
 
 Patch40:        0001-smartcard-Wait-until-smartcards-are-inspected-before.patch
 Patch41:        0002-smartcard-handle-a-smartcard-getting-removed-very-sh.patch
 
-BuildRequires:  autoconf automake libtool gnome-common
-BuildRequires:  git
+Patch50:         gnome-settings-daemon-python3.patch
+
+BuildRequires:  cups-devel
+BuildRequires:  gettext
+BuildRequires:  meson
+BuildRequires:  perl
 BuildRequires:  pkgconfig(alsa)
 BuildRequires:  pkgconfig(colord) >= 1.0.2
 BuildRequires:  pkgconfig(fontconfig)
@@ -56,13 +60,7 @@ BuildRequires:  pkgconfig(upower-glib)
 BuildRequires:  pkgconfig(x11)
 BuildRequires:  pkgconfig(xi)
 BuildRequires:  pkgconfig(xtst)
-BuildRequires:  gettext intltool
-BuildRequires:  cups-devel
-%if 0%{?fedora}
 BuildRequires:  pkgconfig(wayland-client)
-%endif
-BuildRequires:  libxslt
-BuildRequires:  docbook-style-xsl
 %ifnarch s390 s390x
 BuildRequires:  pkgconfig(libwacom) >= 0.7
 BuildRequires:  pkgconfig(xorg-wacom)
@@ -84,11 +82,14 @@ Obsoletes: %{name}-updates < 3.13.1
 Obsoletes: drwright < 3.5.0-3
 Obsoletes: gnome-settings-daemon-devel < 3.23.1
 
+# The "org.gnome.SettingsDaemon.A11yKeyboard" has been been removed, now
+# handled in gnome-shell/mutter instead; this conflict here makes sure not to
+# break older gdm and gnome-session releases that expect the functionality
+Conflicts: gdm < 1:3.27.90
+Conflicts: gnome-session < 3.27.90
 # The orientation and xrandr plugins were removed in 3.25.4 and their
 # functionality was moved to mutter; this conflict here makes sure not to break
 # older gdm, gnome-session and gnome-shell releases that expect the functionality
-Conflicts: gdm < 1:3.25.4.1
-Conflicts: gnome-session < 3.25.4
 Conflicts: gnome-shell < 3.25.4
 
 %description
@@ -104,19 +105,16 @@ The %{name}-devel package contains libraries and header files for
 developing applications that use %{name}.
 
 %prep
-%autosetup -S git
-
-autoreconf -f -i
+%autosetup -p1
 
 %build
-%configure --disable-static \
-           --enable-profiling
-make %{?_smp_mflags}
-
+%meson
+%meson_build
 
 %install
-%make_install
-find $RPM_BUILD_ROOT -name '*.la' -exec rm -f {} ';'
+%meson_install
+
+cp %{SOURCE1} $RPM_BUILD_ROOT%{_datadir}/glib-2.0/schemas
 
 %find_lang %{name} --with-gnome
 
@@ -142,9 +140,6 @@ glib-compile-schemas %{_datadir}/glib-2.0/schemas &> /dev/null || :
 
 # list daemons explicitly, so we notice if one goes missing
 # some of these don't have a separate gschema
-%{_libexecdir}/gsd-a11y-keyboard
-%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.A11yKeyboard.desktop
-
 %{_libexecdir}/gsd-account
 %{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Account.desktop
 %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.account.gschema.xml
@@ -177,6 +172,7 @@ glib-compile-schemas %{_datadir}/glib-2.0/schemas &> /dev/null || :
 %{_libexecdir}/gsd-power
 %{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Power.desktop
 %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.power.gschema.xml
+%{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.power.gschema.override
 
 %{_libexecdir}/gsd-print-notifications
 %{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.PrintNotifications.desktop
@@ -235,6 +231,14 @@ glib-compile-schemas %{_datadir}/glib-2.0/schemas &> /dev/null || :
 %{_libexecdir}/gsd-test-input-helper
 
 %changelog
+* Thu Jul 26 2018 Ray Strode <rstrode@redhat.com> - 3.28.1-2
+- Fix account schema
+  Resolves: #1597353
+
+* Thu Apr 12 2018 Kalev Lember <klember@redhat.com> - 3.28.1-1
+- Update to 3.28.1
+- Resolves: #1568621
+
 * Wed Feb 14 2018 Bastien Nocera <bnocera@redhat.com> - 3.26.2-9
 + gnome-settings-daemon-3.26.2-9
 - Revert automatic suspend after inactivity, it was rejected

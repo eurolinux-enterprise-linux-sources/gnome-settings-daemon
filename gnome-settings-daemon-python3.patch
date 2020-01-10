@@ -1,0 +1,16 @@
+--- gnome-settings-daemon-3.28.1/meson_post_install.py.python3	2018-04-12 19:08:48.000000000 +0200
++++ gnome-settings-daemon-3.28.1/meson_post_install.py	2018-05-16 22:30:01.512877876 +0200
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python3
++#!/usr/bin/env python
+ 
+ import os
+ import subprocess
+--- gnome-settings-daemon-3.28.1/gnome-settings-daemon/codegen.py.python3	2018-04-12 19:08:48.000000000 +0200
++++ gnome-settings-daemon-3.28.1/gnome-settings-daemon/codegen.py	2018-05-16 22:30:21.080876549 +0200
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python3
++#!/usr/bin/env python
+ 
+ '''
+ FIXME

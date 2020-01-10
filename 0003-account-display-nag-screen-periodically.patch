@@ -1,99 +1,75 @@
-From 457ca3295017c34c6805c9dd18599b760705afc5 Mon Sep 17 00:00:00 2001
+From 0cc5343bdd13cd208e394bb430ecef43748dbc49 Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Mon, 6 Nov 2017 16:39:55 -0500
 Subject: [PATCH 3/3] account: display nag screen periodically
 
 This is configurable via a gsettings key.
 ---
- configure.ac                                       |  1 +
- ...ttings-daemon.plugins.account.gschema.xml.in.in |  9 ++++
- plugins/account/gsd-account-manager.c              | 55 ++++++++++++++++++++++
+ data/meson.build                              |  1 +
+ ...ings-daemon.plugins.account.gschema.xml.in |  9 +++
+ plugins/account/gsd-account-manager.c         | 55 +++++++++++++++++++
  3 files changed, 65 insertions(+)
- create mode 100644 data/org.gnome.settings-daemon.plugins.account.gschema.xml.in.in
+ create mode 100644 data/org.gnome.settings-daemon.plugins.account.gschema.xml.in
 
-diff --git a/configure.ac b/configure.ac
-index 5bd742e5..ed5374db 100644
---- a/configure.ac
-+++ b/configure.ac
-@@ -508,60 +508,61 @@ AC_SUBST(DEBUG_CFLAGS)
+diff --git a/data/meson.build b/data/meson.build
+index 5c4fb507..37eea875 100644
+--- a/data/meson.build
++++ b/data/meson.build
+@@ -1,36 +1,37 @@
+ data_inc = include_directories('.')
  
- AC_CONFIG_FILES([
- Makefile
- gnome-settings-daemon/Makefile
- plugins/Makefile
- plugins/a11y-keyboard/Makefile
- plugins/a11y-settings/Makefile
- plugins/account/Makefile
- plugins/clipboard/Makefile
- plugins/color/Makefile
- plugins/common/Makefile
- plugins/datetime/Makefile
- plugins/dummy/Makefile
- plugins/power/Makefile
- plugins/housekeeping/Makefile
- plugins/keyboard/Makefile
- plugins/media-keys/Makefile
- plugins/media-keys/gvc/Makefile
- plugins/mouse/Makefile
- plugins/print-notifications/Makefile
- plugins/rfkill/Makefile
- plugins/screensaver-proxy/Makefile
- plugins/sharing/Makefile
- plugins/smartcard/Makefile
- plugins/sound/Makefile
- plugins/wacom/Makefile
- plugins/xsettings/Makefile
- data/Makefile
- data/gnome-settings-daemon.pc
- data/org.gnome.settings-daemon.plugins.gschema.xml.in
-+data/org.gnome.settings-daemon.plugins.account.gschema.xml.in
- data/org.gnome.settings-daemon.plugins.xsettings.gschema.xml.in
- data/org.gnome.settings-daemon.plugins.power.gschema.xml.in
- data/org.gnome.settings-daemon.plugins.color.gschema.xml.in
- data/org.gnome.settings-daemon.plugins.media-keys.gschema.xml.in
- data/org.gnome.settings-daemon.peripherals.gschema.xml.in
- data/org.gnome.settings-daemon.plugins.housekeeping.gschema.xml.in
- data/org.gnome.settings-daemon.plugins.sharing.gschema.xml.in
- data/org.gnome.settings-daemon.peripherals.wacom.gschema.xml.in
- po/Makefile.in
- tests/Makefile
- ])
- AC_OUTPUT
+ schemas = [
+   'org.gnome.settings-daemon.peripherals.gschema.xml',
+   'org.gnome.settings-daemon.peripherals.wacom.gschema.xml',
+   'org.gnome.settings-daemon.plugins.gschema.xml',
++  'org.gnome.settings-daemon.plugins.account.gschema.xml',
+   'org.gnome.settings-daemon.plugins.color.gschema.xml',
+   'org.gnome.settings-daemon.plugins.housekeeping.gschema.xml',
+   'org.gnome.settings-daemon.plugins.media-keys.gschema.xml',
+   'org.gnome.settings-daemon.plugins.power.gschema.xml',
+   'org.gnome.settings-daemon.plugins.sharing.gschema.xml',
+   'org.gnome.settings-daemon.plugins.xsettings.gschema.xml'
+ ]
  
- dnl ---------------------------------------------------------------------------
- dnl - Show summary
- dnl ---------------------------------------------------------------------------
+ schema_conf = configuration_data()
+ schema_conf.set('GETTEXT_PACKAGE', meson.project_name())
  
- echo "
-                     gnome-settings-daemon $VERSION
-                     =============================
+ foreach schema: schemas
+   configure_file(
+     input: schema + '.in',
+     output: schema,
+     configuration: schema_conf,
+     install: true,
+     install_dir: gsd_schemadir
+   )
+ endforeach
  
-         prefix:                   ${prefix}
-         exec_prefix:              ${exec_prefix}
-         libdir:                   ${libdir}
-         bindir:                   ${bindir}
-         sbindir:                  ${sbindir}
-         sysconfdir:               ${sysconfdir}
-         sysconfsubdir:            ${sysconfsubdir}
-         localstatedir:            ${localstatedir}
-         plugindir:                ${plugindir}
-diff --git a/data/org.gnome.settings-daemon.plugins.account.gschema.xml.in.in b/data/org.gnome.settings-daemon.plugins.account.gschema.xml.in.in
+ enums_header = files('gsd-enums.h')
+ 
+ gnome.mkenums(
+   'org.gnome.settings-daemon.enums.xml',
+   sources: enums_header,
+   comments: '<!-- @comment@ -->',
+   fhead: '<schemalist>',
+   vhead: '  <@type@ id="org.gnome.settings-daemon.@EnumName@">',
+   vprod: '    <value nick="@valuenick@" value="@valuenum@"/>',
+diff --git a/data/org.gnome.settings-daemon.plugins.account.gschema.xml.in b/data/org.gnome.settings-daemon.plugins.account.gschema.xml.in
 new file mode 100644
 index 00000000..0b3a9d97
 --- /dev/null
-+++ b/data/org.gnome.settings-daemon.plugins.account.gschema.xml.in.in
++++ b/data/org.gnome.settings-daemon.plugins.account.gschema.xml.in
 @@ -0,0 +1,9 @@
 +<schemalist>
 +  <schema gettext-domain="@GETTEXT_PACKAGE@" id="org.gnome.settings-daemon.plugins.account" path="/org/gnome/settings-daemon/plugins/account/">
 +    <key name="notify-period" type="i">
 +      <default>1440</default>
-+      <_summary>Time before repeated warning about account password expiration</_summary>
-+      <_description>If a user's account is expiring, a notification will get displayed periodically after the specified number of minutes</_description>
++      <summary>Time before repeated warning about account password expiration</summary>
++      <description>If a user's account is expiring, a notification will get displayed periodically after the specified number of minutes</description>
 +    </key>
 +  </schema>
 +</schemalist>
 diff --git a/plugins/account/gsd-account-manager.c b/plugins/account/gsd-account-manager.c
-index 948679b1..f6db04f8 100644
+index cb37f466..ff054edd 100644
 --- a/plugins/account/gsd-account-manager.c
 +++ b/plugins/account/gsd-account-manager.c
 @@ -20,126 +20,135 @@
@@ -471,5 +447,5 @@ index 948679b1..f6db04f8 100644
  
          g_return_if_fail (object != NULL);
 -- 
-2.14.2
+2.17.0
 

@@ -1,4 +1,4 @@
-From 7816366e44e5bbf417cccfe0a7affad2f40db48f Mon Sep 17 00:00:00 2001
+From 26a5916ed00260399454a2df3942b4349d74a607 Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Mon, 6 Nov 2017 14:43:46 -0500
 Subject: [PATCH 1/3] account: first cut at account plugin
@@ -9,25 +9,26 @@ Future commits will make it redisplay the notification after
 screen unlock and provide some configurability for regular
 nags.
 ---
- configure.ac                                       |    6 +
- plugins/Makefile.am                                |    1 +
- plugins/account/Makefile.am                        |   68 +
- plugins/account/gsd-account-manager.c              |  422 ++
- plugins/account/gsd-account-manager.h              |   54 +
- plugins/account/main.c                             |    7 +
- plugins/account/org.freedesktop.Accounts.User.c    | 6177 ++++++++++++++++++++
- plugins/account/org.freedesktop.Accounts.User.h    |  725 +++
- plugins/account/org.freedesktop.Accounts.User.xml  |  825 +++
- plugins/account/org.freedesktop.Accounts.c         | 3017 ++++++++++
- plugins/account/org.freedesktop.Accounts.h         |  400 ++
- plugins/account/org.freedesktop.Accounts.xml       |  248 +
- .../org.gnome.SettingsDaemon.Account.desktop       |    9 +
- .../org.gnome.SettingsDaemon.Account.desktop.in    |    9 +
- 14 files changed, 11968 insertions(+)
+ plugins/account/Makefile.am                   |   68 +
+ plugins/account/gsd-account-manager.c         |  422 ++
+ plugins/account/gsd-account-manager.h         |   54 +
+ plugins/account/main.c                        |    7 +
+ plugins/account/meson.build                   |   39 +
+ .../account/org.freedesktop.Accounts.User.c   | 6176 +++++++++++++++++
+ .../account/org.freedesktop.Accounts.User.h   |  725 ++
+ .../account/org.freedesktop.Accounts.User.xml |  825 +++
+ plugins/account/org.freedesktop.Accounts.c    | 3016 ++++++++
+ plugins/account/org.freedesktop.Accounts.h    |  400 ++
+ plugins/account/org.freedesktop.Accounts.xml  |  248 +
+ .../org.gnome.SettingsDaemon.Account.desktop  |    9 +
+ ...rg.gnome.SettingsDaemon.Account.desktop.in |    9 +
+ plugins/meson.build                           |    1 +
+ 14 files changed, 11999 insertions(+)
  create mode 100644 plugins/account/Makefile.am
  create mode 100644 plugins/account/gsd-account-manager.c
  create mode 100644 plugins/account/gsd-account-manager.h
  create mode 100644 plugins/account/main.c
+ create mode 100644 plugins/account/meson.build
  create mode 100644 plugins/account/org.freedesktop.Accounts.User.c
  create mode 100644 plugins/account/org.freedesktop.Accounts.User.h
  create mode 100644 plugins/account/org.freedesktop.Accounts.User.xml
@@ -37,179 +38,6 @@ nags.
  create mode 100644 plugins/account/org.gnome.SettingsDaemon.Account.desktop
  create mode 100644 plugins/account/org.gnome.SettingsDaemon.Account.desktop.in
 
-diff --git a/configure.ac b/configure.ac
-index 3073017d..5bd742e5 100644
---- a/configure.ac
-+++ b/configure.ac
-@@ -128,60 +128,65 @@ dnl ---------------------------------------------------------------------------
- dnl - Check for libwayland-client
- dnl ---------------------------------------------------------------------------
- AC_ARG_ENABLE(wayland,
-         AS_HELP_STRING([--disable-wayland],[Disable wayland support (default: auto)]),
-         enable_wayland=$enableval, enable_wayland=auto)
- if test x$enable_wayland != xno; then
-         PKG_CHECK_MODULES(WAYLAND, wayland-client, have_wayland=yes, have_wayland=no)
-         if test x$have_wayland = xyes; then
-                 AC_DEFINE(HAVE_WAYLAND, 1, [Define if libwayland-client is available])
-         else
-                 if test x$enable_wayland = xyes; then
-                         AC_MSG_ERROR([Wayland enabled but not found])
-                 fi
-         fi
- fi
- 
- dnl ================================================================
- dnl Plugins
- dnl ================================================================
- 
- PKG_CHECK_MODULES(A11Y_KEYBOARD,
- 		  gtk+-3.0
- 		  libnotify >= $LIBNOTIFY_REQUIRED_VERSION
- 		  gsettings-desktop-schemas >= $GSETTINGS_DESKTOP_SCHEMAS_REQUIRED_VERSION
- 		  x11)
- 
- PKG_CHECK_MODULES(A11Y_SETTINGS,
- 		  gio-2.0
- 		  gsettings-desktop-schemas >= $GSETTINGS_DESKTOP_SCHEMAS_REQUIRED_VERSION)
- 
-+PKG_CHECK_MODULES(ACCOUNT,
-+		  gtk+-3.0
-+		  gio-unix-2.0
-+		  libnotify >= $LIBNOTIFY_REQUIRED_VERSION)
-+
- PKG_CHECK_MODULES(CLIPBOARD,
- 		  gtk+-x11-3.0
- 		  x11)
- 
- PKG_CHECK_MODULES(COLOR,
- 		  colord >= 1.0.2
- 		  gnome-desktop-3.0 >= $GNOME_DESKTOP_REQUIRED_VERSION
- 		  libcanberra-gtk3
- 		  libgeoclue-2.0 >= $GEOCLUE_REQUIRED_VERSION
- 		  lcms2 >= $LCMS_REQUIRED_VERSION
- 		  libnotify)
- 
- PKG_CHECK_MODULES(DATETIME,
- 		  libnotify >= $LIBNOTIFY_REQUIRED_VERSION
- 		  libgeoclue-2.0 >= $GEOCLUE_REQUIRED_VERSION
- 		  geocode-glib-1.0 >= $GEOCODE_GLIB_REQUIRED_VERSION
- 		  gweather-3.0 >= $LIBGWEATHER_REQUIRED_VERSION
- 		  polkit-gobject-1 >= $POLKIT_REQUIRED_VERSION)
- 
- PKG_CHECK_MODULES(DUMMY,
- 		  gio-2.0
- 		  glib-2.0)
- 
- PKG_CHECK_MODULES(HOUSEKEEPING,
- 		  gtk+-3.0
- 		  gio-unix-2.0
- 		  libnotify >= $LIBNOTIFY_REQUIRED_VERSION)
- 
- PKG_CHECK_MODULES(KEYBOARD,
- 		  gtk+-3.0)
-@@ -480,60 +485,61 @@ if test "$GCC" = "yes" -a "$set_more_warnings" != "no"; then
-                 unset SAVE_CFLAGS
-         done
-         unset option
- else
-         AC_MSG_RESULT(no)
- fi
- 
- #
- # Enable Debug
- #
- AC_ARG_ENABLE(debug,
- 	[AS_HELP_STRING([--enable-debug],[turn on debugging])],
- 	, enable_debug=yes)
- if test "$enable_debug" = "yes"; then
- 	DEBUG_CFLAGS="-DG_ENABLE_DEBUG"
- else
- 	if test "x$enable_debug" = "xno"; then
- 		DEBUG_CFLAGS="-DG_DISABLE_ASSERT -DG_DISABLE_CHECKS"
- 	else
- 		DEBUG_CFLAGS=""
- 	fi
- fi
- AC_SUBST(DEBUG_CFLAGS)
- 
- AC_CONFIG_FILES([
- Makefile
- gnome-settings-daemon/Makefile
- plugins/Makefile
- plugins/a11y-keyboard/Makefile
- plugins/a11y-settings/Makefile
-+plugins/account/Makefile
- plugins/clipboard/Makefile
- plugins/color/Makefile
- plugins/common/Makefile
- plugins/datetime/Makefile
- plugins/dummy/Makefile
- plugins/power/Makefile
- plugins/housekeeping/Makefile
- plugins/keyboard/Makefile
- plugins/media-keys/Makefile
- plugins/media-keys/gvc/Makefile
- plugins/mouse/Makefile
- plugins/print-notifications/Makefile
- plugins/rfkill/Makefile
- plugins/screensaver-proxy/Makefile
- plugins/sharing/Makefile
- plugins/smartcard/Makefile
- plugins/sound/Makefile
- plugins/wacom/Makefile
- plugins/xsettings/Makefile
- data/Makefile
- data/gnome-settings-daemon.pc
- data/org.gnome.settings-daemon.plugins.gschema.xml.in
- data/org.gnome.settings-daemon.plugins.xsettings.gschema.xml.in
- data/org.gnome.settings-daemon.plugins.power.gschema.xml.in
- data/org.gnome.settings-daemon.plugins.color.gschema.xml.in
- data/org.gnome.settings-daemon.plugins.media-keys.gschema.xml.in
- data/org.gnome.settings-daemon.peripherals.gschema.xml.in
- data/org.gnome.settings-daemon.plugins.housekeeping.gschema.xml.in
- data/org.gnome.settings-daemon.plugins.sharing.gschema.xml.in
- data/org.gnome.settings-daemon.peripherals.wacom.gschema.xml.in
-diff --git a/plugins/Makefile.am b/plugins/Makefile.am
-index 6de38f07..1f25b04a 100644
---- a/plugins/Makefile.am
-+++ b/plugins/Makefile.am
-@@ -1,35 +1,36 @@
- NULL =
- 
- enabled_plugins =	\
- 	a11y-keyboard	\
- 	a11y-settings	\
-+	account		\
- 	clipboard	\
- 	color		\
- 	datetime	\
- 	dummy		\
- 	power		\
- 	housekeeping    \
- 	keyboard	\
- 	media-keys	\
- 	mouse		\
- 	screensaver-proxy \
- 	sharing		\
- 	sound		\
- 	xsettings	\
- 	$(NULL)
- 
- disabled_plugins = $(NULL)
- 
- if SMARTCARD_SUPPORT
- enabled_plugins += smartcard
- else
- disabled_plugins += smartcard
- endif
- 
- if HAVE_WACOM
- enabled_plugins += wacom
- else
- disabled_plugins += wacom
- endif
- 
- if BUILD_PRINT_NOTIFICATIONS
 diff --git a/plugins/account/Makefile.am b/plugins/account/Makefile.am
 new file mode 100644
 index 00000000..e06abcf5
@@ -286,7 +114,7 @@ index 00000000..e06abcf5
 +DISTCLEANFILES = $(desktop_DATA)
 diff --git a/plugins/account/gsd-account-manager.c b/plugins/account/gsd-account-manager.c
 new file mode 100644
-index 00000000..642d5bcc
+index 00000000..40b91cb6
 --- /dev/null
 +++ b/plugins/account/gsd-account-manager.c
 @@ -0,0 +1,422 @@
@@ -785,12 +613,57 @@ index 00000000..9b854f65
 +#include "gsd-account-manager.h"
 +
 +#include "daemon-skeleton.h"
+diff --git a/plugins/account/meson.build b/plugins/account/meson.build
+new file mode 100644
+index 00000000..c70ac36e
+--- /dev/null
++++ b/plugins/account/meson.build
+@@ -0,0 +1,39 @@
++sources = files(
++  'gsd-account-manager.c',
++  'main.c'
++)
++
++sources += gnome.gdbus_codegen(
++  'org.freedesktop.Accounts',
++  'org.freedesktop.Accounts.xml',
++  interface_prefix: 'org.freedesktop.',
++  namespace: 'Gsd',
++  object_manager: false,
++  annotations: ['org.freedesktop.Accounts', 'org.gtk.GDBus.C.Name', 'Accounts']
++)
++
++sources += gnome.gdbus_codegen(
++  'org.freedesktop.Accounts.User',
++  'org.freedesktop.Accounts.User.xml',
++  interface_prefix: 'org.freedesktop.',
++  namespace: 'Gsd',
++  object_manager: false,
++  annotations: ['org.freedesktop.Accounts.User', 'org.gtk.GDBus.C.Name', 'AccountsUser']
++)
++
++deps = plugins_deps + [
++  gio_unix_dep,
++  libnotify_dep,
++  nss_dep
++]
++
++executable(
++  'gsd-' + plugin_name,
++  sources,
++  include_directories: [top_inc, common_inc],
++  dependencies: deps,
++  c_args: cflags,
++  install: true,
++  install_rpath: gsd_pkglibdir,
++  install_dir: gsd_libexecdir
++)
 diff --git a/plugins/account/org.freedesktop.Accounts.User.c b/plugins/account/org.freedesktop.Accounts.User.c
 new file mode 100644
-index 00000000..035eb7a4
+index 00000000..3b18d185
 --- /dev/null
 +++ b/plugins/account/org.freedesktop.Accounts.User.c
-@@ -0,0 +1,6177 @@
+@@ -0,0 +1,6176 @@
 +/*
 + * Generated by gdbus-codegen 2.54.1. DO NOT EDIT.
 + *
@@ -2766,7 +2639,7 @@ index 00000000..035eb7a4
 + *
 + * Returns: The property value.
 + */
-+guint64 
++guint64
 +gsd_accounts_user_get_uid (GsdAccountsUser *object)
 +{
 +  return GSD_ACCOUNTS_USER_GET_IFACE (object)->get_uid (object);
@@ -2899,7 +2772,7 @@ index 00000000..035eb7a4
 + *
 + * Returns: The property value.
 + */
-+gint 
++gint
 +gsd_accounts_user_get_account_type (GsdAccountsUser *object)
 +{
 +  return GSD_ACCOUNTS_USER_GET_IFACE (object)->get_account_type (object);
@@ -3236,7 +3109,7 @@ index 00000000..035eb7a4
 + *
 + * Returns: The property value.
 + */
-+guint64 
++guint64
 +gsd_accounts_user_get_login_frequency (GsdAccountsUser *object)
 +{
 +  return GSD_ACCOUNTS_USER_GET_IFACE (object)->get_login_frequency (object);
@@ -3267,7 +3140,7 @@ index 00000000..035eb7a4
 + *
 + * Returns: The property value.
 + */
-+gint64 
++gint64
 +gsd_accounts_user_get_login_time (GsdAccountsUser *object)
 +{
 +  return GSD_ACCOUNTS_USER_GET_IFACE (object)->get_login_time (object);
@@ -3400,7 +3273,7 @@ index 00000000..035eb7a4
 + *
 + * Returns: The property value.
 + */
-+gboolean 
++gboolean
 +gsd_accounts_user_get_locked (GsdAccountsUser *object)
 +{
 +  return GSD_ACCOUNTS_USER_GET_IFACE (object)->get_locked (object);
@@ -3431,7 +3304,7 @@ index 00000000..035eb7a4
 + *
 + * Returns: The property value.
 + */
-+gint 
++gint
 +gsd_accounts_user_get_password_mode (GsdAccountsUser *object)
 +{
 +  return GSD_ACCOUNTS_USER_GET_IFACE (object)->get_password_mode (object);
@@ -3513,7 +3386,7 @@ index 00000000..035eb7a4
 + *
 + * Returns: The property value.
 + */
-+gboolean 
++gboolean
 +gsd_accounts_user_get_automatic_login (GsdAccountsUser *object)
 +{
 +  return GSD_ACCOUNTS_USER_GET_IFACE (object)->get_automatic_login (object);
@@ -3544,7 +3417,7 @@ index 00000000..035eb7a4
 + *
 + * Returns: The property value.
 + */
-+gboolean 
++gboolean
 +gsd_accounts_user_get_system_account (GsdAccountsUser *object)
 +{
 +  return GSD_ACCOUNTS_USER_GET_IFACE (object)->get_system_account (object);
@@ -3575,7 +3448,7 @@ index 00000000..035eb7a4
 + *
 + * Returns: The property value.
 + */
-+gboolean 
++gboolean
 +gsd_accounts_user_get_local_account (GsdAccountsUser *object)
 +{
 +  return GSD_ACCOUNTS_USER_GET_IFACE (object)->get_local_account (object);
@@ -5596,7 +5469,7 @@ index 00000000..035eb7a4
 +  if (!_ret)
 +    {
 +      g_warning ("Error setting property '%s' on interface org.freedesktop.Accounts.User: %s (%s, %d)",
-+                 info->parent_struct.name, 
++                 info->parent_struct.name,
 +                 error->message, g_quark_to_string (error->domain), error->code);
 +      g_error_free (error);
 +    }
@@ -5696,7 +5569,7 @@ index 00000000..035eb7a4
 +    }
 +}
 +
-+static guint64 
++static guint64
 +gsd_accounts_user_proxy_get_uid (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserProxy *proxy = GSD_ACCOUNTS_USER_PROXY (object);
@@ -5741,7 +5614,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gint 
++static gint
 +gsd_accounts_user_proxy_get_account_type (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserProxy *proxy = GSD_ACCOUNTS_USER_PROXY (object);
@@ -5846,7 +5719,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static guint64 
++static guint64
 +gsd_accounts_user_proxy_get_login_frequency (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserProxy *proxy = GSD_ACCOUNTS_USER_PROXY (object);
@@ -5861,7 +5734,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gint64 
++static gint64
 +gsd_accounts_user_proxy_get_login_time (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserProxy *proxy = GSD_ACCOUNTS_USER_PROXY (object);
@@ -5904,7 +5777,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gboolean 
++static gboolean
 +gsd_accounts_user_proxy_get_locked (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserProxy *proxy = GSD_ACCOUNTS_USER_PROXY (object);
@@ -5919,7 +5792,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gint 
++static gint
 +gsd_accounts_user_proxy_get_password_mode (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserProxy *proxy = GSD_ACCOUNTS_USER_PROXY (object);
@@ -5949,7 +5822,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gboolean 
++static gboolean
 +gsd_accounts_user_proxy_get_automatic_login (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserProxy *proxy = GSD_ACCOUNTS_USER_PROXY (object);
@@ -5964,7 +5837,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gboolean 
++static gboolean
 +gsd_accounts_user_proxy_get_system_account (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserProxy *proxy = GSD_ACCOUNTS_USER_PROXY (object);
@@ -5979,7 +5852,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gboolean 
++static gboolean
 +gsd_accounts_user_proxy_get_local_account (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserProxy *proxy = GSD_ACCOUNTS_USER_PROXY (object);
@@ -6683,7 +6556,7 @@ index 00000000..035eb7a4
 +  g_value_init (&skeleton->priv->properties[19], G_TYPE_BOOLEAN);
 +}
 +
-+static guint64 
++static guint64
 +gsd_accounts_user_skeleton_get_uid (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserSkeleton *skeleton = GSD_ACCOUNTS_USER_SKELETON (object);
@@ -6716,7 +6589,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gint 
++static gint
 +gsd_accounts_user_skeleton_get_account_type (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserSkeleton *skeleton = GSD_ACCOUNTS_USER_SKELETON (object);
@@ -6793,7 +6666,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static guint64 
++static guint64
 +gsd_accounts_user_skeleton_get_login_frequency (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserSkeleton *skeleton = GSD_ACCOUNTS_USER_SKELETON (object);
@@ -6804,7 +6677,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gint64 
++static gint64
 +gsd_accounts_user_skeleton_get_login_time (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserSkeleton *skeleton = GSD_ACCOUNTS_USER_SKELETON (object);
@@ -6837,7 +6710,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gboolean 
++static gboolean
 +gsd_accounts_user_skeleton_get_locked (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserSkeleton *skeleton = GSD_ACCOUNTS_USER_SKELETON (object);
@@ -6848,7 +6721,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gint 
++static gint
 +gsd_accounts_user_skeleton_get_password_mode (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserSkeleton *skeleton = GSD_ACCOUNTS_USER_SKELETON (object);
@@ -6870,7 +6743,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gboolean 
++static gboolean
 +gsd_accounts_user_skeleton_get_automatic_login (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserSkeleton *skeleton = GSD_ACCOUNTS_USER_SKELETON (object);
@@ -6881,7 +6754,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gboolean 
++static gboolean
 +gsd_accounts_user_skeleton_get_system_account (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserSkeleton *skeleton = GSD_ACCOUNTS_USER_SKELETON (object);
@@ -6892,7 +6765,7 @@ index 00000000..035eb7a4
 +  return value;
 +}
 +
-+static gboolean 
++static gboolean
 +gsd_accounts_user_skeleton_get_local_account (GsdAccountsUser *object)
 +{
 +  GsdAccountsUserSkeleton *skeleton = GSD_ACCOUNTS_USER_SKELETON (object);
@@ -6967,7 +6840,6 @@ index 00000000..035eb7a4
 +{
 +  return GSD_ACCOUNTS_USER (g_object_new (GSD_TYPE_ACCOUNTS_USER_SKELETON, NULL));
 +}
-+
 diff --git a/plugins/account/org.freedesktop.Accounts.User.h b/plugins/account/org.freedesktop.Accounts.User.h
 new file mode 100644
 index 00000000..f5a0ca0f
@@ -8532,10 +8404,10 @@ index 00000000..4ab989a0
 +</node>
 diff --git a/plugins/account/org.freedesktop.Accounts.c b/plugins/account/org.freedesktop.Accounts.c
 new file mode 100644
-index 00000000..d5d11f5d
+index 00000000..669c43a8
 --- /dev/null
 +++ b/plugins/account/org.freedesktop.Accounts.c
-@@ -0,0 +1,3017 @@
+@@ -0,0 +1,3016 @@
 +/*
 + * Generated by gdbus-codegen 2.54.1. DO NOT EDIT.
 + *
@@ -9617,7 +9489,7 @@ index 00000000..d5d11f5d
 + *
 + * Returns: The property value.
 + */
-+gboolean 
++gboolean
 +gsd_accounts_get_has_no_users (GsdAccounts *object)
 +{
 +  return GSD_ACCOUNTS_GET_IFACE (object)->get_has_no_users (object);
@@ -9648,7 +9520,7 @@ index 00000000..d5d11f5d
 + *
 + * Returns: The property value.
 + */
-+gboolean 
++gboolean
 +gsd_accounts_get_has_multiple_users (GsdAccounts *object)
 +{
 +  return GSD_ACCOUNTS_GET_IFACE (object)->get_has_multiple_users (object);
@@ -10645,7 +10517,7 @@ index 00000000..d5d11f5d
 +  if (!_ret)
 +    {
 +      g_warning ("Error setting property '%s' on interface org.freedesktop.Accounts: %s (%s, %d)",
-+                 info->parent_struct.name, 
++                 info->parent_struct.name,
 +                 error->message, g_quark_to_string (error->domain), error->code);
 +      g_error_free (error);
 +    }
@@ -10760,7 +10632,7 @@ index 00000000..d5d11f5d
 +  return value;
 +}
 +
-+static gboolean 
++static gboolean
 +gsd_accounts_proxy_get_has_no_users (GsdAccounts *object)
 +{
 +  GsdAccountsProxy *proxy = GSD_ACCOUNTS_PROXY (object);
@@ -10775,7 +10647,7 @@ index 00000000..d5d11f5d
 +  return value;
 +}
 +
-+static gboolean 
++static gboolean
 +gsd_accounts_proxy_get_has_multiple_users (GsdAccounts *object)
 +{
 +  GsdAccountsProxy *proxy = GSD_ACCOUNTS_PROXY (object);
@@ -11482,7 +11354,7 @@ index 00000000..d5d11f5d
 +  return value;
 +}
 +
-+static gboolean 
++static gboolean
 +gsd_accounts_skeleton_get_has_no_users (GsdAccounts *object)
 +{
 +  GsdAccountsSkeleton *skeleton = GSD_ACCOUNTS_SKELETON (object);
@@ -11493,7 +11365,7 @@ index 00000000..d5d11f5d
 +  return value;
 +}
 +
-+static gboolean 
++static gboolean
 +gsd_accounts_skeleton_get_has_multiple_users (GsdAccounts *object)
 +{
 +  GsdAccountsSkeleton *skeleton = GSD_ACCOUNTS_SKELETON (object);
@@ -11552,7 +11424,6 @@ index 00000000..d5d11f5d
 +{
 +  return GSD_ACCOUNTS (g_object_new (GSD_TYPE_ACCOUNTS_SKELETON, NULL));
 +}
-+
 diff --git a/plugins/account/org.freedesktop.Accounts.h b/plugins/account/org.freedesktop.Accounts.h
 new file mode 100644
 index 00000000..b8d0625e
@@ -12243,6 +12114,44 @@ index 00000000..1a8ded7d
 +X-GNOME-Autostart-Phase=Initialization
 +X-GNOME-Autostart-Notify=true
 +X-GNOME-AutoRestart=true
+diff --git a/plugins/meson.build b/plugins/meson.build
+index 3db69da7..3c4d42ac 100644
+--- a/plugins/meson.build
++++ b/plugins/meson.build
+@@ -1,32 +1,33 @@
+ enabled_plugins = [
+   ['a11y-settings', 'A11ySettings'],
++  ['account', 'Account'],
+   ['clipboard', 'Clipboard'],
+   ['color', 'Color'],
+   ['datetime', 'Datetime'],
+   ['dummy', ''],
+   ['power', 'Power'],
+   ['housekeeping', 'Housekeeping'],
+   ['keyboard', 'Keyboard'],
+   ['media-keys', 'MediaKeys'],
+   ['mouse', 'Mouse'],
+   ['screensaver-proxy', 'ScreensaverProxy'],
+   ['sharing', 'Sharing'],
+   ['sound', 'Sound'],
+   ['xsettings', 'XSettings']
+ ]
+ 
+ if enable_smartcard
+   enabled_plugins += [['smartcard', 'Smartcard']]
+ endif
+ 
+ if enable_wacom
+   enabled_plugins += [['wacom', 'Wacom']]
+ endif
+ 
+ if enable_cups
+   enabled_plugins += [['print-notifications', 'PrintNotifications']]
+ endif
+ 
+ if enable_rfkill
+   enabled_plugins += [['rfkill', 'Rfkill']]
+ endif
 -- 
-2.14.2
+2.17.0
 

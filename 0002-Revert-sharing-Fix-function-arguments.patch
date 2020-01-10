@@ -1,4 +1,4 @@
-From 12a9c6d06abcd8276612a982b98dbb757b0cd5d3 Mon Sep 17 00:00:00 2001
+From 0d732317df634f7586cf6c5e34394082ea5ea931 Mon Sep 17 00:00:00 2001
 From: Rui Matos <tiagomatos@gmail.com>
 Date: Wed, 11 Oct 2017 18:10:40 +0200
 Subject: [PATCH 2/3] Revert "sharing: Fix function arguments"
@@ -12,7 +12,34 @@ diff --git a/plugins/sharing/gsd-sharing-manager.c b/plugins/sharing/gsd-sharing
 index a90df9a6..26663442 100644
 --- a/plugins/sharing/gsd-sharing-manager.c
 +++ b/plugins/sharing/gsd-sharing-manager.c
-@@ -128,6 +128,7 @@ handle_unit_cb (GObject      *source_object,
+@@ -101,99 +101,102 @@ static const char * const services[] = {
+         "vino-server",
+         "gnome-remote-desktop",
+         "gnome-user-share-webdav"
+ };
+ 
+ static void
+ handle_unit_cb (GObject      *source_object,
+                 GAsyncResult *res,
+                 gpointer      user_data)
+ {
+         GError *error = NULL;
+         GVariant *ret;
+         const char *operation = user_data;
+ 
+         ret = g_dbus_connection_call_finish (G_DBUS_CONNECTION (source_object),
+                                              res, &error);
+         if (!ret) {
+                 if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+                         g_warning ("Failed to %s service: %s", operation, error->message);
+                 g_error_free (error);
+                 return;
+         }
+ 
+         g_variant_unref (ret);
+ 
+ }
+ 
  static void
  gsd_sharing_manager_handle_service (GsdSharingManager   *manager,
                                      const char          *method,
@@ -20,7 +47,15 @@ index a90df9a6..26663442 100644
                                      ServiceInfo         *service)
  {
          char *service_file;
-@@ -143,8 +144,8 @@ gsd_sharing_manager_handle_service (GsdSharingManager   *manager,
+ 
+         service_file = g_strdup_printf ("%s.service", service->name);
+         g_dbus_connection_call (manager->priv->connection,
+                                 "org.freedesktop.systemd1",
+                                 "/org/freedesktop/systemd1",
+                                 "org.freedesktop.systemd1.Manager",
+                                 method,
+                                 g_variant_new ("(ss)", service_file, "replace"),
+                                 NULL,
                                  G_DBUS_CALL_FLAGS_NONE,
                                  -1,
                                  manager->priv->cancellable,
@@ -31,7 +66,12 @@ index a90df9a6..26663442 100644
          g_free (service_file);
  }
  
-@@ -157,7 +158,8 @@ gsd_sharing_manager_start_service (GsdSharingManager *manager,
+ static void
+ gsd_sharing_manager_start_service (GsdSharingManager *manager,
+                                    ServiceInfo       *service)
+ {
+         g_debug ("About to start %s", service->name);
+ 
          /* We use StartUnit, not StartUnitReplace, since the latter would
           * cancel any pending start we already have going from an
           * earlier _start_service() call */
@@ -41,7 +81,8 @@ index a90df9a6..26663442 100644
  }
  
  static void
-@@ -166,7 +168,8 @@ gsd_sharing_manager_stop_service (GsdSharingManager *manager,
+ gsd_sharing_manager_stop_service (GsdSharingManager *manager,
+                                   ServiceInfo       *service)
  {
          g_debug ("About to stop %s", service->name);
  
@@ -51,6 +92,33 @@ index a90df9a6..26663442 100644
  }
  
  #ifdef HAVE_NETWORK_MANAGER
+ static gboolean
+ service_is_enabled_on_current_connection (GsdSharingManager *manager,
+                                           ServiceInfo       *service)
+ {
+         char **connections;
+         int j;
+         gboolean ret;
+         connections = g_settings_get_strv (service->settings, "enabled-connections");
+         ret = FALSE;
+         for (j = 0; connections[j] != NULL; j++) {
+                 if (g_strcmp0 (connections[j], manager->priv->current_network) == 0) {
+                         ret = TRUE;
+                         break;
+                 }
+         }
+ 
+         g_strfreev (connections);
+         return ret;
+ }
+ #else
+ static gboolean
+ service_is_enabled_on_current_connection (GsdSharingManager *manager,
+                                           ServiceInfo       *service)
+ {
+         return FALSE;
+ }
+ #endif /* HAVE_NETWORK_MANAGER */
 -- 
-2.13.5
+2.17.0
 

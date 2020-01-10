@@ -1,4 +1,4 @@
-From 0c5ef2671ad9e439ced820d0a5f6a26ed67cb6e8 Mon Sep 17 00:00:00 2001
+From 0665bd86221d3c9012f0391d8e4939a2d12b6417 Mon Sep 17 00:00:00 2001
 From: Ray Strode <rstrode@redhat.com>
 Date: Fri, 9 Feb 2018 16:39:12 -0500
 Subject: [PATCH 1/2] smartcard: Wait until smartcards are inspected before
@@ -11,7 +11,7 @@ the smartcard's insertion status.
 This commit fixes the race by iterating through all smartcards at
 startup and checking their status explicitly.
 ---
- plugins/smartcard/gsd-smartcard-manager.c | 61 +++++++++++++++++++++++++------
+ plugins/smartcard/gsd-smartcard-manager.c | 61 ++++++++++++++++++-----
  1 file changed, 49 insertions(+), 12 deletions(-)
 
 diff --git a/plugins/smartcard/gsd-smartcard-manager.c b/plugins/smartcard/gsd-smartcard-manager.c
@@ -335,5 +335,5 @@ index a6245425..94ffdd90 100644
          else
                  g_task_return_new_error (task, GSD_SMARTCARD_MANAGER_ERROR,
 -- 
-2.14.3
+2.17.0
 
