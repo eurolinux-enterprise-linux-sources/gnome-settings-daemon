@@ -8,7 +8,7 @@
 
 Name:           gnome-settings-daemon
 Version:        3.28.1
-Release:        2%{?dist}
+Release:        4%{?dist}
 Summary:        The daemon sharing settings from GNOME to GTK+/KDE applications
 
 License:        GPLv2+
@@ -23,6 +23,7 @@ Patch2:         0003-Revert-sharing-Use-systemd-to-track-running-services.patch
 Patch10:        0001-account-first-cut-at-account-plugin.patch
 Patch11:        0002-account-reshow-the-notification-when-screen-unlocks.patch
 Patch12:        0003-account-display-nag-screen-periodically.patch
+Patch13:        0004-account-don-t-poll-more-frequently-than-notification.patch
 
 Patch20:        0001-housekeeping-Add-a-GPU-memory-usage-notification.patch
 
@@ -231,6 +232,10 @@ glib-compile-schemas %{_datadir}/glib-2.0/schemas &> /dev/null || :
 %{_libexecdir}/gsd-test-input-helper
 
 %changelog
+* Mon Jun 10 2019 Ray Strode <rstrode@redhat.com> - 3.28.1-4
+- Fix busy loop in account plugin
+  Resolves: #1600161
+
 * Thu Jul 26 2018 Ray Strode <rstrode@redhat.com> - 3.28.1-2
 - Fix account schema
   Resolves: #1597353
