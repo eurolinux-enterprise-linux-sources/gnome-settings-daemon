@@ -1,0 +1,53 @@
+From a7869039cf6ca7c36649aec182412004a0de47a9 Mon Sep 17 00:00:00 2001
+From: Carlos Garnacho <carlosg@gnome.org>
+Date: Wed, 7 Jun 2017 17:18:13 +0200
+Subject: [PATCH] data: Fix GConf->GSettings convert script
+
+The peripherals settings moved to gsettings-desktop-schemas, but the
+convert script wasn't updated to it.
+---
+ data/gnome-settings-daemon.convert | 16 ++++++----------
+ 1 file changed, 6 insertions(+), 10 deletions(-)
+
+diff --git a/data/gnome-settings-daemon.convert b/data/gnome-settings-daemon.convert
+index b86da037..0452fc0f 100644
+--- a/data/gnome-settings-daemon.convert
++++ b/data/gnome-settings-daemon.convert
+@@ -1,14 +1,9 @@
+ [org.gnome.settings-daemon.peripherals.smartcard]
+ removal-action = /desktop/gnome/peripherals/smartcard/removal_action
+ 
+-[org.gnome.settings-daemon.peripherals.touchpad]
+-disable-while-typing = /desktop/gnome/peripherals/touchpad/disable_while_typing
+-horiz-scroll-enabled = /desktop/gnome/peripherals/touchpad/horiz_scroll_enabled
+-scroll-method = /desktop/gnome/peripherals/touchpad/scroll_method
++[org.gnome.desktop.peripherals.touchpad]
+ tap-to-click = /desktop/gnome/peripherals/touchpad/tap_to_click
+-touchpad-enabled = /desktop/gnome/peripherals/touchpad/touchpad_enabled
+-motion-acceleration = /desktop/gnome/peripherals/mouse/motion_acceleration
+-motion-threshold = /desktop/gnome/peripherals/mouse/motion_threshold
++speed = /desktop/gnome/peripherals/mouse/motion_acceleration
+ 
+ [org.gnome.settings-daemon.plugins.a11y-keyboard]
+ active = /apps/gnome_settings_daemon/plugins/a11y-keyboard/active
+@@ -62,13 +57,14 @@ www = /apps/gnome_settings_daemon/keybindings/www
+ active = /apps/gnome_settings_daemon/plugins/mouse/active
+ priority = /apps/gnome_settings_daemon/plugins/mouse/priority
+ 
++[org.gnome.desktop.peripherals.mouse]
++left-handed = /desktop/gnome/peripherals/mouse/left_handed
++speed = /desktop/gnome/peripherals/mouse/motion_acceleration
++
+ [org.gnome.settings-daemon.peripherals.mouse]
+ locate-pointer = /desktop/gnome/peripherals/mouse/locate_pointer
+ double-click = /desktop/gnome/peripherals/mouse/double_click
+ drag-threshold = /desktop/gnome/peripherals/mouse/drag_threshold
+-left-handed = /desktop/gnome/peripherals/mouse/left_handed
+-motion-acceleration = /desktop/gnome/peripherals/mouse/motion_acceleration
+-motion-threshold = /desktop/gnome/peripherals/mouse/motion_threshold
+ 
+ [org.gnome.settings-daemon.plugins.smartcard]
+ active = /apps/gnome_settings_daemon/plugins/smartcard/active
+-- 
+2.13.0
+
