@@ -1,0 +1,339 @@
+From 0c5ef2671ad9e439ced820d0a5f6a26ed67cb6e8 Mon Sep 17 00:00:00 2001
+From: Ray Strode <rstrode@redhat.com>
+Date: Fri, 9 Feb 2018 16:39:12 -0500
+Subject: [PATCH 1/2] smartcard: Wait until smartcards are inspected before
+ locking screen
+
+There's a race condition in the code where we check if the screen should
+be locked (because the smartcard is removed) before we necessarly check
+the smartcard's insertion status.
+
+This commit fixes the race by iterating through all smartcards at
+startup and checking their status explicitly.
+---
+ plugins/smartcard/gsd-smartcard-manager.c | 61 +++++++++++++++++++++++++------
+ 1 file changed, 49 insertions(+), 12 deletions(-)
+
+diff --git a/plugins/smartcard/gsd-smartcard-manager.c b/plugins/smartcard/gsd-smartcard-manager.c
+index a6245425..94ffdd90 100644
+--- a/plugins/smartcard/gsd-smartcard-manager.c
++++ b/plugins/smartcard/gsd-smartcard-manager.c
+@@ -37,64 +37,73 @@
+ #include <secmod.h>
+ #include <secerr.h>
+ 
+ #define GSD_SMARTCARD_MANAGER_GET_PRIVATE(o) (G_TYPE_INSTANCE_GET_PRIVATE ((o), GSD_TYPE_SMARTCARD_MANAGER, GsdSmartcardManagerPrivate))
+ 
+ #define GSD_SESSION_MANAGER_LOGOUT_MODE_FORCE 2
+ 
+ struct GsdSmartcardManagerPrivate
+ {
+         guint start_idle_id;
+         GsdSmartcardService *service;
+         GList *smartcards_watch_tasks;
+         GCancellable *cancellable;
+ 
+         GsdSessionManager *session_manager;
+         GsdScreenSaver *screen_saver;
+ 
+         GSettings *settings;
+ 
+         NSSInitContext *nss_context;
+ };
+ 
+ #define CONF_SCHEMA "org.gnome.settings-daemon.peripherals.smartcard"
+ #define KEY_REMOVE_ACTION "removal-action"
+ 
+ static void     gsd_smartcard_manager_class_init  (GsdSmartcardManagerClass *klass);
+ static void     gsd_smartcard_manager_init        (GsdSmartcardManager      *self);
+ static void     gsd_smartcard_manager_finalize    (GObject                  *object);
+ static void     lock_screen                       (GsdSmartcardManager *self);
+ static void     log_out                           (GsdSmartcardManager *self);
++static void     on_smartcards_from_driver_watched (GsdSmartcardManager *self,
++                                                   GAsyncResult        *result,
++                                                   GTask               *task);
+ G_DEFINE_TYPE (GsdSmartcardManager, gsd_smartcard_manager, G_TYPE_OBJECT)
+ G_DEFINE_QUARK (gsd-smartcard-manager-error, gsd_smartcard_manager_error)
+ G_LOCK_DEFINE_STATIC (gsd_smartcards_watch_tasks);
+ 
++typedef struct {
++        SECMODModule *driver;
++        guint         idle_id;
++        GError       *error;
++} DriverRegistrationOperation;
++
+ static gpointer manager_object = NULL;
+ 
+ static void
+ gsd_smartcard_manager_class_init (GsdSmartcardManagerClass *klass)
+ {
+         GObjectClass   *object_class = G_OBJECT_CLASS (klass);
+ 
+         object_class->finalize = gsd_smartcard_manager_finalize;
+ 
+         gsd_smartcard_utils_register_error_domain (GSD_SMARTCARD_MANAGER_ERROR,
+                                                    GSD_TYPE_SMARTCARD_MANAGER_ERROR);
+         g_type_class_add_private (klass, sizeof (GsdSmartcardManagerPrivate));
+ }
+ 
+ static void
+ gsd_smartcard_manager_init (GsdSmartcardManager *self)
+ {
+         self->priv = GSD_SMARTCARD_MANAGER_GET_PRIVATE (self);
+ }
+ 
+ static void
+ load_nss (GsdSmartcardManager *self)
+ {
+         GsdSmartcardManagerPrivate *priv = self->priv;
+         NSSInitContext *context = NULL;
+ 
+         /* The first field in the NSSInitParameters structure
+          * is the size of the structure. NSS requires this, so
+          * that it can change the size of the structure in future
+          * versions of NSS in a detectable way
+@@ -291,135 +300,168 @@ watch_smartcards_from_driver (GTask                    *task,
+                         break;
+                 }
+ 
+                 if (!watch_succeeded) {
+                         g_task_return_error (task, error);
+                         break;
+                 }
+         }
+ }
+ 
+ static void
+ destroy_watch_smartcards_operation (WatchSmartcardsOperation *operation)
+ {
+         SECMOD_DestroyModule (operation->driver);
+         g_hash_table_unref (operation->smartcards);
+         g_free (operation);
+ }
+ 
+ static void
+ on_smartcards_watch_task_destroyed (GsdSmartcardManager *self,
+                                     GTask               *freed_task)
+ {
+         GsdSmartcardManagerPrivate *priv = self->priv;
+ 
+         G_LOCK (gsd_smartcards_watch_tasks);
+         priv->smartcards_watch_tasks = g_list_remove (priv->smartcards_watch_tasks,
+                                                       freed_task);
+         G_UNLOCK (gsd_smartcards_watch_tasks);
+ }
+ 
++static void
++sync_initial_tokens_from_driver (GsdSmartcardManager *self,
++                                 SECMODModule        *driver,
++                                 GHashTable          *smartcards,
++                                 GCancellable        *cancellable)
++{
++        GsdSmartcardManagerPrivate *priv = self->priv;
++        int i;
++
++        for (i = 0; i < driver->slotCount; i++) {
++                PK11SlotInfo *card;
++
++                card = driver->slots[i];
++
++                if (PK11_IsPresent (card)) {
++                        CK_SLOT_ID slot_id;
++                        slot_id = PK11_GetSlotID (card);
++
++                        g_debug ("Detected smartcard in slot %d at start up", (int) slot_id);
++
++                        g_hash_table_replace (smartcards,
++                                              GINT_TO_POINTER ((int) slot_id),
++                                              PK11_ReferenceSlot (card));
++                        gsd_smartcard_service_sync_token (priv->service, card, cancellable);
++                }
++        }
++}
++
+ static void
+ watch_smartcards_from_driver_async (GsdSmartcardManager *self,
+                                     SECMODModule        *driver,
+                                     GCancellable        *cancellable,
+                                     GAsyncReadyCallback  callback,
+                                     gpointer             user_data)
+ {
+         GsdSmartcardManagerPrivate *priv = self->priv;
+         GTask *task;
+         WatchSmartcardsOperation *operation;
+ 
+         operation = g_new0 (WatchSmartcardsOperation, 1);
+         operation->driver = SECMOD_ReferenceModule (driver);
+         operation->smartcards = g_hash_table_new_full (g_direct_hash,
+                                                        g_direct_equal,
+                                                        NULL,
+                                                        (GDestroyNotify) PK11_FreeSlot);
+ 
+         task = g_task_new (self, cancellable, callback, user_data);
+ 
+         g_task_set_task_data (task,
+                               operation,
+                               (GDestroyNotify) destroy_watch_smartcards_operation);
+ 
+         G_LOCK (gsd_smartcards_watch_tasks);
+         priv->smartcards_watch_tasks = g_list_prepend (priv->smartcards_watch_tasks,
+                                                        task);
+         g_object_weak_ref (G_OBJECT (task),
+                            (GWeakNotify) on_smartcards_watch_task_destroyed,
+                            self);
+         G_UNLOCK (gsd_smartcards_watch_tasks);
+ 
++        sync_initial_tokens_from_driver (self, driver, operation->smartcards, cancellable);
++
+         g_task_run_in_thread (task, (GTaskThreadFunc) watch_smartcards_from_driver);
+ }
+ 
+ static gboolean
+ register_driver_finish (GsdSmartcardManager  *self,
+                         GAsyncResult         *result,
+                         GError              **error)
+ {
+         return g_task_propagate_boolean (G_TASK (result), error);
+ }
+ 
+ static void
+ on_driver_registered (GsdSmartcardManager *self,
+                       GAsyncResult        *result,
+                       GTask               *task)
+ {
+         GError *error = NULL;
++        DriverRegistrationOperation *operation;
++        GsdSmartcardManagerPrivate *priv = self->priv;
++
++        operation = g_task_get_task_data (G_TASK (result));
+ 
+         if (!register_driver_finish (self, result, &error)) {
+                 g_task_return_error (task, error);
+                 g_object_unref (task);
+                 return;
+         }
+ 
+-        g_task_return_boolean (task, TRUE);
++        watch_smartcards_from_driver_async (self,
++                                            operation->driver,
++                                            priv->cancellable,
++                                            (GAsyncReadyCallback) on_smartcards_from_driver_watched,
++                                            task);
+ 
++        g_task_return_boolean (task, TRUE);
+         g_object_unref (task);
+ }
+ 
+ static void
+ on_smartcards_from_driver_watched (GsdSmartcardManager *self,
+                                    GAsyncResult        *result,
+                                    GTask               *task)
+ {
+         g_debug ("Done watching smartcards from driver");
+ }
+ 
+-typedef struct {
+-        SECMODModule *driver;
+-        guint         idle_id;
+-        GError       *error;
+-} DriverRegistrationOperation;
+-
+ static void
+ destroy_driver_registration_operation (DriverRegistrationOperation *operation)
+ {
+         SECMOD_DestroyModule (operation->driver);
+         g_free (operation);
+ }
+ 
+ static gboolean
+ on_task_thread_to_complete_driver_registration (GTask *task)
+ {
+         DriverRegistrationOperation *operation;
+         operation = g_task_get_task_data (task);
+ 
+         if (operation->error != NULL)
+                 g_task_return_error (task, operation->error);
+         else
+                 g_task_return_boolean (task, TRUE);
+ 
+         return G_SOURCE_REMOVE;
+ }
+ 
+ static gboolean
+ on_main_thread_to_register_driver (GTask *task)
+ {
+         GsdSmartcardManager *self;
+         GsdSmartcardManagerPrivate *priv;
+         DriverRegistrationOperation *operation;
+         GSource *source;
+ 
+         self = g_task_get_source_object (task);
+@@ -450,65 +492,60 @@ register_driver (GsdSmartcardManager *self,
+ 
+         task = g_task_new (self, cancellable, callback, user_data);
+         operation = g_new0 (DriverRegistrationOperation, 1);
+         operation->driver = SECMOD_ReferenceModule (driver);
+         g_task_set_task_data (task,
+                               operation,
+                               (GDestroyNotify) destroy_driver_registration_operation);
+ 
+         operation->idle_id = g_idle_add ((GSourceFunc) on_main_thread_to_register_driver, task);
+         g_source_set_name_by_id (operation->idle_id, "[gnome-settings-daemon] on_main_thread_to_register_driver");
+ }
+ 
+ static void
+ activate_driver (GsdSmartcardManager *self,
+                  SECMODModule        *driver,
+                  GCancellable        *cancellable,
+                  GAsyncReadyCallback  callback,
+                  gpointer             user_data)
+ {
+         GTask *task;
+ 
+         g_debug ("Activating driver '%s'", driver->commonName);
+ 
+         task = g_task_new (self, cancellable, callback, user_data);
+ 
+         register_driver (self,
+                          driver,
+                          cancellable,
+                          (GAsyncReadyCallback) on_driver_registered,
+                          task);
+-        watch_smartcards_from_driver_async (self,
+-                                            driver,
+-                                            cancellable,
+-                                            (GAsyncReadyCallback) on_smartcards_from_driver_watched,
+-                                            task);
+ }
+ 
+ typedef struct
+ {
+   int pending_drivers_count;
+   int activated_drivers_count;
+ } ActivateAllDriversOperation;
+ 
+ static gboolean
+ activate_driver_async_finish (GsdSmartcardManager  *self,
+                               GAsyncResult         *result,
+                               GError              **error)
+ {
+         return g_task_propagate_boolean (G_TASK (result), error);
+ }
+ 
+ static void
+ try_to_complete_all_drivers_activation (GTask *task)
+ {
+         ActivateAllDriversOperation *operation;
+ 
+         operation = g_task_get_task_data (task);
+ 
+         if (operation->pending_drivers_count > 0)
+                 return;
+ 
+         if (operation->activated_drivers_count > 0)
+                 g_task_return_boolean (task, TRUE);
+         else
+                 g_task_return_new_error (task, GSD_SMARTCARD_MANAGER_ERROR,
+-- 
+2.14.3
+

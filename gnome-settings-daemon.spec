@@ -1,33 +1,42 @@
+%global glib2_version 2.53.0
 %global gtk3_version 3.15.3
 %global gnome_desktop_version 3.11.1
 %global libgweather_version 3.9.5
-%global gsettings_desktop_schemas_version 3.20.0
+%global gsettings_desktop_schemas_version 3.23.3
 %global geocode_glib_version 3.10.0
 %global geoclue_version 2.3.1
 
 Name:           gnome-settings-daemon
-Version:        3.22.2
-Release:        5%{?dist}
+Version:        3.26.2
+Release:        9%{?dist}
 Summary:        The daemon sharing settings from GNOME to GTK+/KDE applications
 
 License:        GPLv2+
 URL:            https://download.gnome.org/sources/%{name}
-Source0:        https://download.gnome.org/sources/%{name}/3.22/%{name}-%{version}.tar.xz
+Source0:        https://download.gnome.org/sources/%{name}/3.26/%{name}-%{version}.tar.xz
 
-Patch0:         smarter-pad-osd-layout.patch
+Patch0:         0001-Revert-Revert-plugins-Work-around-startup-deadlock.patch
+Patch1:         0002-Revert-sharing-Fix-function-arguments.patch
+Patch2:         0003-Revert-sharing-Use-systemd-to-track-running-services.patch
+
+Patch10:        0001-account-first-cut-at-account-plugin.patch
+Patch11:        0002-account-reshow-the-notification-when-screen-unlocks.patch
+Patch12:        0003-account-display-nag-screen-periodically.patch
+
+Patch20:        0001-housekeeping-Add-a-GPU-memory-usage-notification.patch
+Patch21:        0001-common-Ensure-screen-integrated-devices-get-remapped.patch
+
+Patch40:        0001-smartcard-Wait-until-smartcards-are-inspected-before.patch
+Patch41:        0002-smartcard-handle-a-smartcard-getting-removed-very-sh.patch
+
 BuildRequires:  autoconf automake libtool gnome-common
-
-Patch1:         revert-sharing-fix-function-arguments.patch
-Patch2:         revert-sharing-use-systemd-to-track-running-services.patch
-
-Patch3:         0001-media-keys-Fix-mmkeys-D-Bus-API-to-match-API-docs.patch
-Patch4:         0001-data-Fix-GConf-GSettings-convert-script.patch
-
+BuildRequires:  git
 BuildRequires:  pkgconfig(alsa)
 BuildRequires:  pkgconfig(colord) >= 1.0.2
 BuildRequires:  pkgconfig(fontconfig)
 BuildRequires:  pkgconfig(geoclue-2.0) >= %{geoclue_version}
 BuildRequires:  pkgconfig(geocode-glib-1.0) >= %{geocode_glib_version}
+BuildRequires:  pkgconfig(glib-2.0) >= %{glib2_version}
 BuildRequires:  pkgconfig(gnome-desktop-3.0) >= %{gnome_desktop_version}
 BuildRequires:  pkgconfig(gsettings-desktop-schemas) >= %{gsettings_desktop_schemas_version}
 BuildRequires:  pkgconfig(gtk+-3.0) >= %{gtk3_version}
@@ -47,7 +56,6 @@ BuildRequires:  pkgconfig(upower-glib)
 BuildRequires:  pkgconfig(x11)
 BuildRequires:  pkgconfig(xi)
 BuildRequires:  pkgconfig(xtst)
-BuildRequires:  pkgconfig(libxml-2.0)
 BuildRequires:  gettext intltool
 BuildRequires:  cups-devel
 %if 0%{?fedora}
@@ -66,6 +74,7 @@ Requires: iio-sensor-proxy
 %endif
 Requires: geoclue2 >= %{geoclue_version}
 Requires: geocode-glib%{?_isa} >= %{geocode_glib_version}
+Requires: glib2%{?_isa} >= %{glib2_version}
 Requires: gnome-desktop3%{?_isa} >= %{gnome_desktop_version}
 Requires: gsettings-desktop-schemas%{?_isa} >= %{gsettings_desktop_schemas_version}
 Requires: gtk3%{?_isa} >= %{gtk3_version}
@@ -73,10 +82,14 @@ Requires: libgweather%{?_isa} >= %{libgweather_version}
 
 Obsoletes: %{name}-updates < 3.13.1
 Obsoletes: drwright < 3.5.0-3
+Obsoletes: gnome-settings-daemon-devel < 3.23.1
 
-# Input sources handling was moved to gnome-shell / mutter; make sure not to
-# break older gnome-shell versions.
-Conflicts: gnome-shell < 3.13.92
+# The orientation and xrandr plugins were removed in 3.25.4 and their
+# functionality was moved to mutter; this conflict here makes sure not to break
+# older gdm, gnome-session and gnome-shell releases that expect the functionality
+Conflicts: gdm < 1:3.25.4.1
+Conflicts: gnome-session < 3.25.4
+Conflicts: gnome-shell < 3.25.4
 
 %description
 A daemon to share settings from GNOME to other applications. It also
@@ -91,20 +104,12 @@ The %{name}-devel package contains libraries and header files for
 developing applications that use %{name}.
 
 %prep
-%setup -q
-%patch0 -p1 -b .smarter-pad-osd-layout
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
-%patch4 -p1
+%autosetup -S git
 
 autoreconf -f -i
 
 %build
 %configure --disable-static \
-%if 0%{?rhel}
-           --disable-wayland \
-%endif
            --enable-profiling
 make %{?_smp_mflags}
 
@@ -135,298 +140,434 @@ glib-compile-schemas %{_datadir}/glib-2.0/schemas &> /dev/null || :
 %license COPYING
 %doc AUTHORS NEWS
 
-# list plugins explicitly, so we notice if one goes missing
+# list daemons explicitly, so we notice if one goes missing
 # some of these don't have a separate gschema
-%{_libdir}/gnome-settings-daemon-3.0/a11y-keyboard.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/liba11y-keyboard.so
+%{_libexecdir}/gsd-a11y-keyboard
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.A11yKeyboard.desktop
 
-%{_libdir}/gnome-settings-daemon-3.0/clipboard.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libclipboard.so
+%{_libexecdir}/gsd-account
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Account.desktop
+%{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.account.gschema.xml
 
-%{_libdir}/gnome-settings-daemon-3.0/datetime.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libdatetime.so
-%{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.datetime.gschema.xml
+%{_libexecdir}/gsd-clipboard
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Clipboard.desktop
 
-%{_libdir}/gnome-settings-daemon-3.0/housekeeping.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libhousekeeping.so
+%{_libexecdir}/gsd-datetime
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Datetime.desktop
+
+%{_libexecdir}/gsd-dummy
+
+%{_libexecdir}/gsd-housekeeping
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Housekeeping.desktop
 %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.housekeeping.gschema.xml
 
-%{_libdir}/gnome-settings-daemon-3.0/keyboard.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libkeyboard.so
-%{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.keyboard.gschema.xml
+%{_libexecdir}/gsd-keyboard
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Keyboard.desktop
 
-%{_libdir}/gnome-settings-daemon-3.0/media-keys.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libmedia-keys.so
+%{_libexecdir}/gsd-media-keys
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.MediaKeys.desktop
 %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.media-keys.gschema.xml
 
-%{_libdir}/gnome-settings-daemon-3.0/mouse.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libmouse.so
+%{_libexecdir}/gsd-mouse
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Mouse.desktop
+%{_libexecdir}/gsd-locate-pointer
 
 %{_libexecdir}/gsd-backlight-helper
 %{_datadir}/polkit-1/actions/org.gnome.settings-daemon.plugins.power.policy
-%{_libdir}/gnome-settings-daemon-3.0/power.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libpower.so
+%{_libexecdir}/gsd-power
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Power.desktop
 %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.power.gschema.xml
 
-%{_libdir}/gnome-settings-daemon-3.0/print-notifications.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libprint-notifications.so
-%{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.print-notifications.gschema.xml
+%{_libexecdir}/gsd-print-notifications
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.PrintNotifications.desktop
+%{_libexecdir}/gsd-printer
 
-%{_libdir}/gnome-settings-daemon-3.0/librfkill.so
-%{_libdir}/gnome-settings-daemon-3.0/rfkill.gnome-settings-plugin
+%{_libexecdir}/gsd-rfkill
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Rfkill.desktop
 
-%{_libdir}/gnome-settings-daemon-3.0/screensaver-proxy.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libscreensaver-proxy.so
+%{_libexecdir}/gsd-screensaver-proxy
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.ScreensaverProxy.desktop
 
-%{_libdir}/gnome-settings-daemon-3.0/smartcard.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libsmartcard.so
+%{_libexecdir}/gsd-smartcard
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Smartcard.desktop
 
-%{_libdir}/gnome-settings-daemon-3.0/sound.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libsound.so
+%{_libexecdir}/gsd-sound
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Sound.desktop
 
 %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.peripherals.gschema.xml
 %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.peripherals.wacom.gschema.xml
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Wacom.desktop
 
 %ifnarch s390 s390x
-%{_libdir}/gnome-settings-daemon-3.0/wacom.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libgsdwacom.so
+%{_libexecdir}/gsd-wacom
 %{_libexecdir}/gsd-wacom-led-helper
 %{_libexecdir}/gsd-wacom-oled-helper
 %{_datadir}/polkit-1/actions/org.gnome.settings-daemon.plugins.wacom.policy
 %endif
 
-%{_libdir}/gnome-settings-daemon-3.0/xrandr.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libxrandr.so
-%{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.xrandr.gschema.xml
-
-%{_libdir}/gnome-settings-daemon-3.0/xsettings.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libxsettings.so
+%{_libexecdir}/gsd-xsettings
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.XSettings.desktop
 %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.xsettings.gschema.xml
 
-%{_libdir}/gnome-settings-daemon-3.0/a11y-settings.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/liba11y-settings.so
+%{_libexecdir}/gsd-a11y-settings
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.A11ySettings.desktop
 
-%{_libdir}/gnome-settings-daemon-3.0/color.gnome-settings-plugin
-%{_libdir}/gnome-settings-daemon-3.0/libcolor.so
+%{_libexecdir}/gsd-color
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Color.desktop
 %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.color.gschema.xml
 
-%{_libdir}/gnome-settings-daemon-3.0/liborientation.so
-%{_libdir}/gnome-settings-daemon-3.0/orientation.gnome-settings-plugin
-%{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.orientation.gschema.xml
-
-%{_libdir}/gnome-settings-daemon-3.0/libsharing.so
-%{_libdir}/gnome-settings-daemon-3.0/sharing.gnome-settings-plugin
+%{_libexecdir}/gsd-sharing
+%{_sysconfdir}/xdg/autostart/org.gnome.SettingsDaemon.Sharing.desktop
 %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.sharing.gschema.xml
 
 %{_libdir}/gnome-settings-daemon-3.0/libgsd.so
 
-%{_libexecdir}/gnome-settings-daemon
-%{_libexecdir}/gnome-settings-daemon-localeexec
-%{_libexecdir}/gsd-locate-pointer
-%{_libexecdir}/gsd-printer
-
 /usr/lib/udev/rules.d/*.rules
 %{_datadir}/gnome-settings-daemon/
-%{_sysconfdir}/xdg/autostart/gnome-settings-daemon.desktop
-%{_datadir}/icons/hicolor/*/apps/gsd-xrandr.*
 %{_datadir}/GConf/gsettings/gnome-settings-daemon.convert
 
 %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.enums.xml
 %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.gschema.xml
 
-%{_datadir}/man/man1/gnome-settings-daemon.1.gz
-
-
 %files devel
 %{_includedir}/gnome-settings-daemon-3.0
 %{_libdir}/pkgconfig/gnome-settings-daemon.pc
-%ifnarch s390 s390x
-%{_libexecdir}/gsd-list-wacom
-%{_libexecdir}/gsd-test-wacom
-%{_libexecdir}/gsd-test-wacom-osd
-%endif
-%{_libexecdir}/gsd-test-a11y-keyboard
-%{_libexecdir}/gsd-test-a11y-settings
-%{_libexecdir}/gsd-test-datetime
-%{_libexecdir}/gsd-test-housekeeping
 %{_libexecdir}/gsd-test-input-helper
-%{_libexecdir}/gsd-test-keyboard
-%{_libexecdir}/gsd-test-media-keys
-%{_libexecdir}/gsd-test-mouse
-%{_libexecdir}/gsd-test-orientation
-%{_libexecdir}/gsd-test-print-notifications
-%{_libexecdir}/gsd-test-rfkill
-%{_libexecdir}/gsd-test-screensaver-proxy
-%{_libexecdir}/gsd-test-smartcard
-%{_libexecdir}/gsd-test-sound
-%{_libexecdir}/gsd-test-xrandr
-%{_libexecdir}/gsd-test-xsettings
 
 %changelog
-* Thu Jun 08 2017 Carlos Garnacho <cgarnach@redhat.com> - 3.22.2-5
-- Fix GConf->GSettings convert script to latest setting interfaces
-  Resolves: #1435410
+* Wed Feb 14 2018 Bastien Nocera <bnocera@redhat.com> - 3.26.2-9
++ gnome-settings-daemon-3.26.2-9
+- Revert automatic suspend after inactivity, it was rejected
+- Related: #1449171
 
-* Wed May 10 2017 Rui Matos <rmatos@redhat.com> - 3.22.2-4
-- Fix media keys code to match API documentation
-  Resolves: #1444908
+* Mon Feb 12 2018 Ray Strode <rstrode@redhat.com> - 3.26.2-8
+- Fix race leading to spurious screen lock at login time
+  Resolves: #1532820
 
-* Fri May 05 2017 Bastien Nocera <bnocera@redhat.com> - 3.22.2-3
-- Fix 3.22.2-2 patch application
-Resolves: #1445381
+* Tue Jan 30 2018 Ray Strode <rstrode@redhat.com> - 3.26.2-7
+- Fix logic error in password expiration notification bubble
+  Resolves: #1530659
+  Related: 1314443
 
-* Tue Mar 14 2017 Ondrej Holy <oholy@redhat.com> - 3.22.2-2
-- Revert usage of systemd to handle vino-server
-- Resolves: #1445381
+* Fri Jan 26 2018 Bastien Nocera <bnocera@redhat.com> - 3.26.2-6
+- Suspend after 15 minutes as 20 minutes doesn't exist in the UI
+- Resolves: #1449171
 
-* Tue Mar 14 2017 Bastien Nocera <bnocera@redhat.com> - 3.22.2-1
-+ gnome-settings-daemon-3.22.2-1
-- Update to 3.22.2
-- Fixes bugs in custom keyboard shortcuts handling and a smartcard
-  regression
-Resolves: #1425487
+* Thu Jan 18 2018 Bastien Nocera <bnocera@redhat.com> - 3.26.2-5
+- Suspend after 20 minutes of inactivity, see commit for details
+- Resolves: #1449171
 
-* Fri Mar 10 2017 Carlos Garnacho <cgarnach@redhat.com> - 3.22.1-3
-- Remove a hard dep on iio-sensor-proxy
-- Resolves: #1342994
+* Tue Jan 16 2018 Carlos Garnacho <cgarnach@redhat.com> - 3.26.2-4
+- Force remapping of screen-integrated devices on every hotplug event
+- Resolves: #1516434
 
-* Fri Feb 17 2017 Kalev Lember <klember@redhat.com> - 3.22.1-2
-- Remove a hard dep on iio-sensor-proxy
-- Resolves: #1386958
+* Thu Nov  9 2017 Rui Matos <rmatos@redhat.com> - 3.26.2-3
+- Add a GPU memory usage notification
+- Related: #1300852
 
-* Wed Oct 19 2016 Kalev Lember <klember@redhat.com> - 3.22.1-1
-- Update to 3.22.1
-- Resolves: #1386958
+* Mon Nov 06 2017 Ray Strode <rstrode@redhat.com> - 3.26.2-2
+- Add a notification bubble if user account is expiring
+  Resolves: #1314443
 
-* Thu Jun 30 2016 Bastien Nocera <bnocera@redhat.com> - 3.14.4-12
-- Update translation
-Resolves: #1304275
+* Thu Nov 02 2017 Kalev Lember <klember@redhat.com> - 3.26.2-1
+- Update to 3.26.2
+- Resolves: #1481410
 
-* Tue May 17 2016 Richard Hughes <rhughes@redhat.com> - 3.14.4-11
-- Ignore fake VNC devices, they can't be color managed anyway.
-Resolves: #1300937
+* Wed Oct 11 2017 Rui Matos <rmatos@redhat.com> - 3.26.1-2
+- Rebase to 3.26.1
+- Resolves: #1481410
 
-* Tue Apr 12 2016 Bastien Nocera <bnocera@redhat.com> - 3.14.4-10
-- Disable spice detection, not needed with Virgil
-Resolves: #1296111
+* Sun Oct 08 2017 Kalev Lember <klember@redhat.com> - 3.26.1-1
+- Update to 3.26.1
 
-* Mon Sep 14 2015 Ray Strode <rstrode@redhat.com> 3.14.4-9
-- Apply patch from previous fix
-Resolves: #1260081
+* Wed Sep 13 2017 Kalev Lember <klember@redhat.com> - 3.26.0-1
+- Update to 3.26.0
 
-* Thu Sep 10 2015 Ray Strode <rstrode@redhat.com> 3.14.4-8
-- Fix smartcard events after login
-Resolves: #1260081
+* Tue Sep 05 2017 Kalev Lember <klember@redhat.com> - 3.25.92-1
+- Update to 3.25.92
 
-* Mon May 25 2015 Ondrej Holy <oholy@redhat.com> - 3.14.4-7
-- Do not disable touchpad buttons
-Resolves: #1075190
+* Thu Aug 24 2017 Kalev Lember <klember@redhat.com> - 3.25.91-1
+- Update to 3.25.91
 
-* Thu May 21 2015 Florian Müllner <fmuellner@redhat.com> - 3.14.4-6
-- Allow non-interactive power-actions when locked
-Resolves: #980692
+* Tue Aug 15 2017 Kalev Lember <klember@redhat.com> - 3.25.90-1
+- Update to 3.25.90
 
-* Thu May 14 2015 Rui Matos <rmatos@redhat.com> - 3.14.4-5
-- Don't use colons in filenames
-Resolves: #1221613
+* Mon Jul 31 2017 Kalev Lember <klember@redhat.com> - 3.25.4-2
+- Add explicit conflicts to not break older gdm, gnome-session and gnome-shell
 
-* Tue May 12 2015 Matthias Clasen <mclasen@redhat.com> 3.14.4-4
-- Rebuild against new colord
-Related: #1174593
+* Mon Jul 31 2017 Kalev Lember <klember@redhat.com> - 3.25.4-1
+- Update to 3.25.4
 
-* Thu May  7 2015 Matthias Clasen <mclasen@redhat.com> 3.14.4-3
-- Export session id as xsetting
-Resolves: #1207380
+* Wed Jul 26 2017 Fedora Release Engineering <releng@fedoraproject.org> - 3.25.2-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_27_Mass_Rebuild
 
-* Wed May 06 2015 Ray Strode <rstrode@redhat.com> 3.14.4-2
-- Rebuild with lower geoclue req
-Related: #1174593
+* Mon Jun 12 2017 Kalev Lember <klember@redhat.com> - 3.25.2-1
+- Update to 3.25.2
 
-* Thu Apr 30 2015 Bastien Nocera <bnocera@redhat.com> 3.14.4-1
-- Update to 3.14.4
-Resolves: #1174593
+* Wed May 10 2017 Kalev Lember <klember@redhat.com> - 3.24.2-1
+- Update to 3.24.2
 
-* Tue Sep 30 2014 Matthias Clasen <mclasen@redhat.com> 3.8.6.1-12
-- Fix a crash in the remote-display plugin
-Resolves: #1145144
+* Wed Apr 12 2017 Kalev Lember <klember@redhat.com> - 3.24.1-1
+- Update to 3.24.1
 
-* Fri Sep 05 2014 Bastien Nocera <bnocera@redhat.com> 3.8.6.1-11
-- Add support for XF86AudioMicMute
-Resolves: #1108934
+* Tue Mar 21 2017 Kalev Lember <klember@redhat.com> - 3.24.0-1
+- Update to 3.24.0
 
-* Wed May  7 2014 Carlos Garnacho <cgarnach@redhat.com> - 3.8.6.1-10
-- Fix mapping of touchscreens and other tablet devices
-Resolves: #1029612
+* Thu Mar 16 2017 Kalev Lember <klember@redhat.com> - 3.23.92-1
+- Update to 3.23.92
 
-* Fri May  2 2014 Rui Matos <rmatos@redhat.com> - 3.8.6.1-9
-- Check that the output is connected when determining if it's ON
-Resolves: #1081093
+* Wed Feb 15 2017 Richard Hughes <rhughes@redhat.com> - 3.23.90-1
+- Update to 3.23.90
 
-* Tue Feb 11 2014 Ray Strode <rstrode@redhat.com> 3.8.6.1-8
-- Be more lenient of wonky smartcard hardware/drivers
-Resolves: #1061785
+* Fri Feb 10 2017 Fedora Release Engineering <releng@fedoraproject.org> - 3.23.3-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_26_Mass_Rebuild
 
-* Mon Feb 03 2014 Bastien Nocera <bnocera@redhat.com> 3.8.6.1-7
-- Really apply patch from 3.8.6.1-6
-Resolves: #1047921
+* Thu Jan 12 2017 Bastien Nocera <bnocera@redhat.com> - 3.23.3-1
++ gnome-settings-daemon-3.23.3-1
+- Update to 3.23.3
 
-* Fri Jan 31 2014 Bastien Nocera <bnocera@redhat.com> 3.8.6.1-6
-- Apply num-lock to newly connected keyboards
-Resolves: #1047921
+* Tue Oct 11 2016 Bastien Nocera <bnocera@redhat.com> - 3.23.2-1
++ gnome-settings-daemon-3.23.2-1
+- Update to 3.23.2
 
-* Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 3.8.6.1-5
-- Mass rebuild 2014-01-24
+* Thu Sep 22 2016 Kalev Lember <klember@redhat.com> - 3.22.0-1
+- Update to 3.22.0
 
-* Fri Dec 27 2013 Daniel Mach <dmach@redhat.com> - 3.8.6.1-4
-- Mass rebuild 2013-12-27
+* Wed Sep 14 2016 Kalev Lember <klember@redhat.com> - 3.21.92.1-1
+- Update to 3.21.92.1
 
-* Thu Dec 12 2013 Matthias Clasen <mclasen@redhat.com> 3.8.6.1-3
-- Update translations
-Resolves: #1030348
+* Wed Sep 14 2016 Kalev Lember <klember@redhat.com> - 3.21.92-1
+- Update to 3.21.92
+- Don't set group tags
 
-* Fri Nov 08 2013 Bastien Nocera <bnocera@redhat.com> 3.8.6.1-2
-- Make the power button work in gdm
-Resolves: #980692
+* Fri Aug 26 2016 Kalev Lember <klember@redhat.com> - 3.21.90-1
+- Update to 3.21.90
 
-* Thu Oct 31 2013 Bastien Nocera <bnocera@redhat.com> 3.8.6.1-1
-- Update to 3.8.6.1 to fix build failures
-Resolves: #1016206
+* Sun Apr 17 2016 Bastien Nocera <bnocera@redhat.com> - 3.20.1-3
+- Fix crasher in newly enabled audio device selection dialogue
 
-* Wed Oct 30 2013 Bastien Nocera <bnocera@redhat.com> 3.8.6-1
-- Update to 3.8.6
-Resolves: #1016206
+* Sun Apr 17 2016 Bastien Nocera <bnocera@redhat.com> - 3.20.1-2
+- Require alsa to enable the audio device selection dialogue
 
-* Fri Sep  6 2013 Rui Matos <rmatos@redhat.com> - 3.8.5-1
-- Update to 3.8.5
-- Drop upstreamed patches
+* Wed Apr 13 2016 Kalev Lember <klember@redhat.com> - 3.20.1-1
+- Update to 3.20.1
 
-* Thu Aug 22 2013 Ray Strode <rstrode@redhat.com> 3.8.4-3
-- Ignore soft tokens
-  Related: #854724
-  Resolves: #991835
+* Tue Mar 22 2016 Kalev Lember <klember@redhat.com> - 3.20.0-1
+- Update to 3.20.0
 
-* Tue Jul 30 2013 Ray Strode <rstrode@redhat.com> 3.8.4-2
-- Add back in smartcard support
-  Related: #854724
+* Thu Mar 17 2016 Kalev Lember <klember@redhat.com> - 3.19.92-1
+- Update to 3.19.92
 
-* Tue Jul 30 2013 Ray Strode <rstrode@redhat.com> 3.8.4-1
-- Update to 3.8.4
+* Fri Mar 04 2016 Kalev Lember <klember@redhat.com> - 3.19.91-1
+- Update to 3.19.91
 
-* Mon Jul 22 2013 Bastien Nocera <bnocera@redhat.com> 3.8.3-4
+* Wed Feb 17 2016 Richard Hughes <rhughes@redhat.com> - 3.19.90-1
+- Update to 3.19.90
+
+* Wed Feb 03 2016 Fedora Release Engineering <releng@fedoraproject.org> - 3.19.5-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_24_Mass_Rebuild
+
+* Wed Jan 20 2016 Kalev Lember <klember@redhat.com> - 3.19.5-1
+- Update to 3.19.5
+
+* Thu Dec 17 2015 Kalev Lember <klember@redhat.com> - 3.19.4-1
+- Update to 3.19.4
+
+* Tue Dec 15 2015 Kalev Lember <klember@redhat.com> - 3.19.3-1
+- Update to 3.19.3
+
+* Tue Nov 10 2015 Kalev Lember <klember@redhat.com> - 3.18.2-1
+- Update to 3.18.2
+
+* Mon Oct 12 2015 Kalev Lember <klember@redhat.com> - 3.18.1-1
+- Update to 3.18.1
+
+* Mon Sep 21 2015 Kalev Lember <klember@redhat.com> - 3.18.0-1
+- Update to 3.18.0
+
+* Mon Sep 14 2015 Kalev Lember <klember@redhat.com> - 3.17.92-1
+- Update to 3.17.92
+
+* Mon Aug 17 2015 Kalev Lember <klember@redhat.com> - 3.17.90-1
+- Update to 3.17.90
+- Use make_install macro
+
+* Wed Jul 22 2015 David King <amigadave@amigadave.com> - 3.17.3-1
+- Update to 3.17.3
+- Use pkgconfig for BuildRequires
+
+* Wed Jun 17 2015 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 3.17.2-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_23_Mass_Rebuild
+
+* Thu Jun 11 2015 Richard Hughes <rhughes@redhat.com> - 3.17.2-2
+- Add runtime dep on iio-sensor-proxy for the ambient light sensor
+
+* Fri Jun 05 2015 Kalev Lember <kalevlember@gmail.com> - 3.17.2-1
+- Update to 3.17.2
+
+* Tue May 12 2015 Kalev Lember <kalevlember@gmail.com> - 3.16.2-1
+- Update to 3.16.2
+
+* Tue Apr 14 2015 Kalev Lember <kalevlember@gmail.com> - 3.16.1-1
+- Update to 3.16.1
+
+* Mon Mar 23 2015 Kalev Lember <kalevlember@gmail.com> - 3.16.0-1
+- Update to 3.16.0
+
+* Tue Mar 17 2015 Kalev Lember <kalevlember@gmail.com> - 3.15.92-1
+- Update to 3.15.92
+
+* Tue Mar 03 2015 Kalev Lember <kalevlember@gmail.com> - 3.15.91-1
+- Update to 3.15.91
+- Use the %%license macro for the COPYING file
+
+* Tue Feb 17 2015 Richard Hughes <rhughes@redhat.com> - 3.15.90-1
+- Update to 3.15.90
+
+* Thu Jan 22 2015 Richard Hughes <rhughes@redhat.com> - 3.15.4-1
+- Update to 3.15.4
+
+* Thu Nov 27 2014 Kalev Lember <kalevlember@gmail.com> - 3.15.1-1
+- Update to 3.15.1
+
+* Tue Nov 11 2014 Kalev Lember <kalevlember@gmail.com> - 3.14.2-1
+- Update to 3.14.2
+
+* Sat Nov 01 2014 Richard Hughes <rhughes@redhat.com> - 3.14.1-3
+- Fix compile on RHEL
+
+* Sun Oct 26 2014 Kalev Lember <kalevlember@gmail.com> - 3.14.1-2
+- Obsolete drwright
+
+* Tue Oct 14 2014 Rui Matos <rmatos@redhat.com> - 3.14.1-1
+- Update to 3.14.1
+
+* Mon Sep 22 2014 Kalev Lember <kalevlember@gmail.com> - 3.14.0-1
+- Update to 3.14.0
+
+* Tue Sep 16 2014 Kalev Lember <kalevlember@gmail.com> - 3.13.92-1
+- Update to 3.13.92
+
+* Wed Sep 03 2014 Kalev Lember <kalevlember@gmail.com> - 3.13.91-1
+- Update to 3.13.91
+
+* Mon Aug 18 2014 Kalev Lember <kalevlember@gmail.com> - 3.13.90-1
+- Update to 3.13.90
+
+* Sat Aug 16 2014 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 3.13.4-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_21_22_Mass_Rebuild
+
+* Wed Jul 23 2014 Kalev Lember <kalevlember@gmail.com> - 3.13.4-1
+- Update to 3.13.4
+
+* Thu Jun 26 2014 Richard Hughes <rhughes@redhat.com> - 3.13.3-1
+- Update to 3.13.3
+
+* Wed Jun 25 2014 Richard Hughes <rhughes@redhat.com> - 3.13.2-1
+- Update to 3.13.2
+
+* Sat Jun 07 2014 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 3.13.1-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_21_Mass_Rebuild
+
+* Thu May 01 2014 Kalev Lember <kalevlember@gmail.com> - 3.13.1-1
+- Update to 3.13.1
+- Remove and obsolete the updates plugin
+
+* Wed Apr 16 2014 Kalev Lember <kalevlember@gmail.com> - 3.12.1-1
+- Update to 3.12.1
+- Tighten subpackage deps
+
+* Mon Apr 14 2014 Kalev Lember <kalevlember@gmail.com> - 3.12.0.1-3
+- Drop control-center-filesystem dependency
+
+* Sat Apr 05 2014 Kalev Lember <kalevlember@gmail.com> - 3.12.0.1-2
+- Update dep versions
+
+* Wed Mar 26 2014 Richard Hughes <rhughes@redhat.com> - 3.12.0.1-1
+- Update to 3.12.0.1
+
+* Mon Mar 24 2014 Richard Hughes <rhughes@redhat.com> - 3.12.0-1
+- Update to 3.12.0
+
+* Tue Mar 18 2014 Richard Hughes <rhughes@redhat.com> - 3.11.92-1
+- Update to 3.11.92
+
+* Tue Mar 04 2014 Richard Hughes <rhughes@redhat.com> - 3.11.91-1
+- Update to 3.11.91
+
+* Wed Feb 19 2014 Richard Hughes <rhughes@redhat.com> - 3.11.90-2
+- Rebuilt for gnome-desktop soname bump
+
+* Tue Feb 18 2014 Richard Hughes <rhughes@redhat.com> - 3.11.90-1
+- Update to 3.11.90
+
+* Tue Feb 04 2014 Richard Hughes <rhughes@redhat.com> - 3.11.5-1
+- Update to 3.11.5
+
+* Thu Jan 30 2014 Richard Hughes <rhughes@redhat.com> - 3.11.3-2
+- Rebuild for libpackagekit-glib soname bump
+
+* Tue Dec 17 2013 Richard Hughes <rhughes@redhat.com> - 3.11.3-1
+- Update to 3.11.3
+
+* Mon Nov 25 2013 Richard Hughes <rhughes@redhat.com> - 3.11.2-1
+- Update to 3.11.2
+
+* Thu Oct 31 2013 Florian Müllner <fmuellner@redhat.com> - 3.11.1-1
+- Update to 3.11.1
+
+* Mon Oct 28 2013 Richard Hughes <rhughes@redhat.com> - 3.10.1-1
+- Update to 3.10.1
+
+* Fri Oct 11 2013 Richard Hughes <rhughes@redhat.com> - 3.10.0-3
+- Apply the previous patch on Fedora too.
+
+* Fri Oct 11 2013 Richard Hughes <rhughes@redhat.com> - 3.10.0-2
+- Grab a patch from upstream to fix the multiple notifications about updates.
+- Resolves: https://bugzilla.redhat.com/show_bug.cgi?id=1009132
+
+* Tue Sep 24 2013 Kalev Lember <kalevlember@gmail.com> - 3.10.0-1
+- Update to 3.10.0
+
+* Wed Sep 18 2013 Kalev Lember <kalevlember@gmail.com> - 3.9.92-1
+- Update to 3.9.92
+
+* Tue Sep 17 2013 Richard Hughes <rhughes@redhat.com> - 3.9.91.1-2
+- Grab a patch from upstream so that the offline updates feature can
+  actually work when reboot returns with success.
+
+* Tue Sep 03 2013 Matthias Clasen <mclasen@redhat.com> - 3.9.91.1-1
+- Update to 3.9.91.1
+
+* Tue Sep 03 2013 Kalev Lember <kalevlember@gmail.com> - 3.9.91-1
+- Update to 3.9.91
+- Include the new datetime plugin
+
+* Fri Aug 23 2013 Kalev Lember <kalevlember@gmail.com> - 3.9.90-2
+- Keep middle click paste enabled for now
+
+* Thu Aug 22 2013 Kalev Lember <kalevlember@gmail.com> - 3.9.90-1
+- Update to 3.9.90
+
+* Fri Aug 09 2013 Kalev Lember <kalevlember@gmail.com> - 3.9.5-1
+- Update to 3.9.5
+- Remove empty /etc/gnome-settings-daemon directory
+- Install new rfkill plugin and add back the smartcard plugin
+
+* Tue Jul 30 2013 Richard Hughes <rhughes@redhat.com> - 3.9.3-3
+- Rebuild for colord soname bump
+
+* Mon Jul 22 2013 Bastien Nocera <bnocera@redhat.com> 3.9.3-2
 - Remove obsolete GStreamer 0.10 BRs
 
-* Sun Jun 16 2013 Kalev Lember <kalevlember@gmail.com> - 3.8.3-3
-- Backport more upstream fixes for the localeexec helper (#974778)
+* Thu Jun 20 2013 Kalev Lember <kalevlember@gmail.com> - 3.9.3-1
+- Update to 3.9.3
 
-* Mon Jun 10 2013 Matthias Clasen <mclasen@redhat.com> - 3.8.3-2
-- Avoid calling setenv after threads are initialized (#919855)
-
-* Fri Jun  7 2013 Rui Matos <rmatos@redhat.com> - 3.8.3-1
-- Update to 3.8.3
-
-* Fri May 17 2013 Rui Matos <rmatos@redhat.com>
-- Add a patch to stop adding input sources automatically based on
-  locale since that's now gnome-initial-setup's job
+* Sun Jun 02 2013 Kalev Lember <kalevlember@gmail.com> - 3.9.2-1
+- Update to 3.9.2
+- Drop the ibus-kkc-libpinyin patch; the hardcoded input sources
+  list is gone from g-s-d
+- Set the minimum required gnome-desktop3 version
 
 * Tue May 14 2013 Richard Hughes <rhughes@redhat.com> - 3.8.2-1
 - Update to 3.8.2

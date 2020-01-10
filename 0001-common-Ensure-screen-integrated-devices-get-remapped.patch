@@ -1,0 +1,128 @@
+From 1c1a4201a6456892ba50f9a8ffec2e5cf0c90ec3 Mon Sep 17 00:00:00 2001
+From: Carlos Garnacho <carlosg@gnome.org>
+Date: Fri, 5 Jan 2018 18:38:30 +0100
+Subject: [PATCH 1/3] common: Ensure screen integrated devices get remapped on
+ hotplug
+
+GsdDeviceMapper used to refrain from remapping devices that already had
+a configured output. This however results on wrong mapping when the input
+device is plugged before the output, since the heuristics will attempt
+really hard to find an output for the device before the real one is
+available, and not remapped again when the output is plugged.
+
+Fix this by forcing remapping on all screen-integrated devices on every
+hotplug event, so the input device will get remapped to the right screen
+(hopefully!) when it is plugged. This is not applied to devices mapped
+to the builtin output, or those with no attached output at all, as in both
+of these cases the configured output should be left static.
+
+https://bugzilla.gnome.org/show_bug.cgi?id=748589
+---
+ plugins/common/gsd-device-mapper.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/plugins/common/gsd-device-mapper.c b/plugins/common/gsd-device-mapper.c
+index c9a113c4..fae4150f 100644
+--- a/plugins/common/gsd-device-mapper.c
++++ b/plugins/common/gsd-device-mapper.c
+@@ -603,10 +603,15 @@ mapper_recalculate_candidates (GsdDeviceMapper *mapper)
+ 
+ 		input_info_update_settings_output (input);
+ 
+-		/* Device has an output from settings */
+-		if (input->output)
++		/* Avoid opaque device with an output from settings and
++		 * system-integrated devices that won't get remapped anyway
++		 */
++		if (input->output &&
++                    (input->capabilities & GSD_INPUT_IS_SCREEN_INTEGRATED) == 0)
+ 			continue;
+ 
++		/* reset the current output */
++		input_info_set_output (input, NULL, FALSE, FALSE);
+ 		input_info_guess_candidates (input, outputs);
+ 		mapping_helper_add (helper, input, outputs);
+ 	}
+-- 
+2.14.3
+
+
+From 9b08637bc3c907886b03accad6f9f4b1a2a575dc Mon Sep 17 00:00:00 2001
+From: Benjamin Tissoires <benjamin.tissoires@redhat.com>
+Date: Thu, 2 Nov 2017 10:24:43 +0100
+Subject: [PATCH 2/3] Fix screen mapping for Cintiqs and others
+
+Size-based input/output matching doesn't raise the "found" flag, which
+would result on input_info_guess_candidates() still trying to assign the
+builtin output to the input device if that is the only match found.
+
+For screen integrated devices (i.e. not on the builtin output) this is
+and undesirable possibility, setting the "found" flag to TRUE results on
+the correct output being assigned.
+
+Signed-off-by: Benjamin Tissoires <benjamin.tissoires@redhat.com>
+
+https://bugzilla.gnome.org/show_bug.cgi?id=748589
+---
+ plugins/common/gsd-device-mapper.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/plugins/common/gsd-device-mapper.c b/plugins/common/gsd-device-mapper.c
+index fae4150f..d4f7bc35 100644
+--- a/plugins/common/gsd-device-mapper.c
++++ b/plugins/common/gsd-device-mapper.c
+@@ -257,6 +257,7 @@ input_info_guess_candidates (GsdInputInfo  *input,
+ 
+ 	if (input->capabilities & GSD_INPUT_IS_SCREEN_INTEGRATED) {
+ 		outputs[GSD_PRIO_MATCH_SIZE] = input_info_find_size_match (input, input->mapper->rr_screen);
++		found |= outputs[GSD_PRIO_MATCH_SIZE] != NULL;
+ 	}
+ 
+ 	split = g_strsplit (name, " ", -1);
+-- 
+2.14.3
+
+
+From 64004232ff007847c5bf04c9ec2ca8cdb8fd8d5d Mon Sep 17 00:00:00 2001
+From: Carlos Garnacho <carlosg@gnome.org>
+Date: Wed, 19 Jul 2017 19:32:41 +0200
+Subject: [PATCH 3/3] common: Check for wayland before building
+ GsdUdevDeviceManager
+
+Udev is rather common, so this check doesn't suffice if anyone wants
+to build with no wayland support whatsoever.
+
+https://bugzilla.gnome.org/show_bug.cgi?id=780544
+---
+ configure.ac               | 1 +
+ plugins/common/Makefile.am | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/configure.ac b/configure.ac
+index bee9abe6..d04f8b66 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -140,6 +140,7 @@ if test x$enable_wayland != xno; then
+                 fi
+         fi
+ fi
++AM_CONDITIONAL(HAVE_WAYLAND, test x$have_wayland = xyes)
+ 
+ dnl ================================================================
+ dnl Plugins
+diff --git a/plugins/common/Makefile.am b/plugins/common/Makefile.am
+index 706be129..36cf17cc 100644
+--- a/plugins/common/Makefile.am
++++ b/plugins/common/Makefile.am
+@@ -40,7 +40,7 @@ libcommon_la_SOURCES = \
+ 	gsd-shell-helper.c	\
+ 	gsd-shell-helper.h
+ 
+-if HAVE_GUDEV
++if HAVE_WAYLAND
+ libcommon_la_SOURCES += \
+ 	gsd-device-manager-udev.c \
+ 	gsd-device-manager-udev.h
+-- 
+2.14.3
+
