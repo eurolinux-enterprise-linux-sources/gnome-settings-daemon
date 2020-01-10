@@ -8,7 +8,7 @@
 
 Name:           gnome-settings-daemon
 Version:        3.28.1
-Release:        4%{?dist}
+Release:        5%{?dist}
 Summary:        The daemon sharing settings from GNOME to GTK+/KDE applications
 
 License:        GPLv2+
@@ -31,6 +31,8 @@ Patch40:        0001-smartcard-Wait-until-smartcards-are-inspected-before.patch
 Patch41:        0002-smartcard-handle-a-smartcard-getting-removed-very-sh.patch
 
 Patch50:         gnome-settings-daemon-python3.patch
+
+Patch51:        enable-ibus-osk-purpose.patch
 
 BuildRequires:  cups-devel
 BuildRequires:  gettext
@@ -232,6 +234,10 @@ glib-compile-schemas %{_datadir}/glib-2.0/schemas &> /dev/null || :
 %{_libexecdir}/gsd-test-input-helper
 
 %changelog
+* Mon Jul 22 2019 Carlos Garnacho <cgarnach@redhat.com> - 3.28.1-5
+- Added patch for - keyboard: Enable ibus for OSK purposes
+  Resolves: #1632904
+
 * Mon Jun 10 2019 Ray Strode <rstrode@redhat.com> - 3.28.1-4
 - Fix busy loop in account plugin
   Resolves: #1600161
